@@ -7,6 +7,7 @@ consistency, vendor-stub placement, and the negative overflow tests
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,7 @@ from engine.verify.e2e import (
     CellFailure,
     VENDOR_STUB_S,
     assert_fits,
+    build_cpp_cell,
     check_memory_x,
     inject_vendor_stubs,
     parse_memory_x,
@@ -135,3 +137,25 @@ def test_vendor_stub_gas_syntax() -> None:
     # (all 6 C/C++ cells failed with "junk at end of line ... '%'").
     assert "%%" not in VENDOR_STUB_S
     assert "%progbits" in VENDOR_STUB_S and "%function" in VENDOR_STUB_S
+
+
+def test_warnings_are_recorded_and_do_not_fail_the_cell(tmp_path: Path, monkeypatch) -> None:
+    """ops-033: warn-only policy — warning lines are recorded per cell and the
+    cell still passes (authoritative statement: docs/warnings-policy.md)."""
+    device = load_file(PACKS_DIR / "stm32f411re.yaml")
+    size_out = (
+        "   text\t   data\t    bss\t    dec\t    hex\tfilename\n"
+        "    200\t      8\t     16\t    224\t     e0\tstm32f411re-M4.elf\n"
+    )
+
+    def fake_docker_run(image, project_dir, args, timeout=0):
+        if args[0] == "make":  # the build itself emits a warning, then succeeds
+            return subprocess.CompletedProcess(
+                args, 0, "warning: deprecated foo [-Wdeprecated]\nbuilt ok\n", ""
+            )
+        return subprocess.CompletedProcess(args, 0, size_out, "")
+
+    monkeypatch.setattr("engine.verify.e2e.docker_run", fake_docker_run)
+    res = build_cpp_cell(device, tmp_path, "img")
+    assert res.ok is True
+    assert any("deprecated" in w for w in res.warnings)
