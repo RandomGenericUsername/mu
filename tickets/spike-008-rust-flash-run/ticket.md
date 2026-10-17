@@ -87,7 +87,8 @@ because it passes `--target` itself (`engine/verify/e2e.py:340`). Filed as
     §Success signal + CAP-3 and `device-matrix.md:3` to state **C/C++ = flash/run +
     observable proof; Rust = build-to-ELF parity** (dated amendment notes link back
     here; evidence `docs/flash-run-evidence.md` §"Scope note"). The generated Rust
-    `README.md` wording is still open.
+    `README.md` LED claim was already fixed by `bug-025` (regression-tested in
+    `engine/templates/tests/test_renderer.py`), so no README work remains here.
 - **Nuance (debug attach):** after a *detached* run (`probe-rs reset`, session torn
   down), a reconnect on F411RE failed with `JtagNoDeviceConnected` — consistent
   with the bare `wfi` sleep stopping the core clock with default DBGMCU.

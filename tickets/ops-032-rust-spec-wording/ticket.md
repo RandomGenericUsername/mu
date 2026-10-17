@@ -2,7 +2,7 @@
 id: ops-032
 title: "Amend the spec success signal for the Rust build-parity decision"
 kind: ops-task
-status: in-progress
+status: done
 size: XS
 lane: direct
 links:
