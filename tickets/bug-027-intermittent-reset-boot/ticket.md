@@ -2,14 +2,14 @@
 id: bug-027
 title: "M4 app starts only ~2/6 times after an OpenOCD reset (sits in ROM at 0x1fff2cc0)"
 kind: bug
-status: triage
+status: done
 lane: direct
 severity: S2
 links:
   openspec: none
   bmad: []
-worktree: none
-branch: none
+worktree: .worktrees/bug-027/
+branch: ticket/bug-027-reset-retry
 repro: "flash a generated WL55JC project, then run openocd 'reset run' six times in a row, reading RCC_AHB2ENR (0x5800004c) and PWR_CR4 each time"
 observed: "iterations 0 and 3 run main (AHB2ENR=0x00000002, PWR_CR4=0x00008000); iterations 1,2,4,5 do not (AHB2ENR=0x00000003, PWR_CR4=0x00000000). In the failed state DHCSR=0x01010001 (core running) but PC=0x1fff2cc0 (system ROM) — it never jumps to flash. Same ratio with and without the bug-026 fix."
 expected: "after a reset the generated app always starts from its vector table (AHB2ENR shows the GPIO enable, PWR_CR4 gets written by the ctor)"
@@ -75,7 +75,38 @@ It is a **real device-level boot-selection problem**, not an OpenOCD/STLINK arte
 - **`probe/cpu2-boot.cfg` masks this bug** (it sets C2BOOT on every attach, so a stuck
   board looks healthy) — see `bug-031`.
 
-**Blocked on:** identifying which ROM subsystem this is requires a reset the debugger
-cannot synthesise. A ≈2-minute physical-reset procedure (NRST button ×10, power-cycle
-×10, option-byte read, with a BOOTED/STUCK decision rule) is recorded in the
-investigation report; run it at the bench to discriminate.
+**Resolved the "blocked" question (2026-10-17).** The physical-reset test was run at the
+bench: **NRST ×10 = 10/10 booted; USB power-cycle ×10 = 10/10 booted.** Debugger-issued
+resets stayed intermittent (`reset run` scored 8/8, 7/10 and 5/10 across runs;
+`reset halt`+`resume` 4/8; `reset_config srst_only srst_open_drain` was worse at 2/8).
+Conclusion: the board and the program are fine; the failure is specific to
+**debugger-issued resets**. The escalation-to-ST path is therefore **closed**.
+
+## Fixed (2026-10-17) — verify-and-retry
+
+The underlying boot-latch cause is not needed for the fix: the failure is intermittent
+per reset, so retrying the reset converges.
+
+- `engine/core/bootcheck.py` — after a reset, verify the app actually started (read a
+  marker only a running program writes) and retry the reset, bounded.
+- Wired into **both** reset sites: `engine/adapters/openocd.py` (`mu flash`) and the
+  generated Makefile flash targets (`engine/templates/renderer.py`).
+- +18 tests (378 total).
+
+### Same-harness flash reliability (NUCLEO-WL55JC)
+
+| | running after flash |
+|---|---|
+| before (main, no retry) | **5 / 10** |
+| after (this fix) | **20 / 20** |
+
+```
+# before: create/build from main, then 10x `make flash` + read RCC_AHB2ENR  -> 5/10
+# after:  same loop on this branch                                          -> 20/20
+```
+
+**Honesty note:** our V1 flash evidence (`ops-027`/`ops-028`, "`Verified OK` + LED
+blinking") recorded a **lucky boot** — weaker than it reads. The retry makes that claim
+honest going forward.
+
+Verify: `uv run python -m pytest engine/ -q` → 378 passed.
