@@ -16,6 +16,7 @@ from pathlib import Path
 from string import Template
 
 from engine.core.model import Core, Device
+from engine.core.bootcheck import boot_check_commands
 from engine.core.stacks import stack_spec
 from engine.adapters.toolchain import ensure_registered as _ensure_stacks
 from engine.templates.vendoring import VendorError, vendor
@@ -149,6 +150,21 @@ def _oc_flash_args(device: Device) -> str:
         args += " -f probe/dual-core.cfg"
     args += f" -f {target}"
     return args
+
+
+def _boot_check_cmds(device: Device, core_name: str) -> str:
+    """`-c '<loop>' -c '<verdict>'` for the flash targets (bug-027).
+
+    The reset at the end of `program … verify reset` leaves the board in a
+    *possibly* non-booting state (bug-027), so every flash target appends the
+    shared verify-and-retry tail from :mod:`engine.core.bootcheck`. Two
+    escaping rules, in order: ``$`` becomes ``$$`` so `make` hands a literal
+    ``$`` to the recipe, and the Tcl payload is wrapped in **single** quotes so
+    the shell does not expand those variables. The commands themselves are
+    built by the shared module, so `make flash` and `mu flash` cannot drift.
+    """
+    cmds = boot_check_commands(device.memory, core_name)
+    return " ".join("-c '" + c.replace("$", "$$") + "'" for c in cmds)
 
 
 # Delay-loop calibration for the generated examples (bug-015). The NOP loop
@@ -390,6 +406,9 @@ def core_context(device: Device, core: Core, lang: str) -> dict:
         "oc_interface": device.openocd.interface if device.openocd else "stlink.cfg",
         "oc_cfg_path": _oc_cfg_path(device),
         "oc_flash_args": _oc_flash_args(device),
+        # bug-027: the trailing reset is not reliable, so the flash recipe
+        # carries the shared verify-and-retry tail for this core's flash bank.
+        "boot_check_cmds": _boot_check_cmds(device, core.name),
         "oc_dual": bool(device.openocd and device.openocd.dual_core),
         "probe_transport": device.probe_ref.transport,
         "probe_address": device.probe_ref.address,
@@ -461,7 +480,8 @@ _MAKEFILE_CORE = Template(
     "\t$$(SIZE) $$(OUT_$core).elf\n"
     "\n"
     "flash-$core: build-$core\n"
-    "\t$$(OPENOCD) $oc_flash_args -c \"program $$(OUT_$core).elf verify reset exit\"\n"
+    "\t$$(OPENOCD) $oc_flash_args -c \"program $$(OUT_$core).elf verify reset\""
+    " $boot_check_cmds -c \"exit\"\n"
     "\n"
     "clean-$core:\n"
     "\trm -rf build/$core\n"
