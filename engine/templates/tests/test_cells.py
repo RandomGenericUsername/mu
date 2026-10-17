@@ -17,6 +17,7 @@ import pytest
 import yaml
 
 from engine.core.loader import load_file
+from engine.core.bootcheck import PLACEHOLDER_GUARD
 from engine.templates.renderer import RUST_PINS, render
 
 PACKS_DIR = Path(__file__).resolve().parents[3] / "packs"
@@ -24,8 +25,9 @@ PACK_IDS = ("stm32f411re", "stm32h755", "stm32wl55jc")
 LANGS = ("c", "cpp", "rust")
 
 # Placeholder leak: $IDENT / ${IDENT} leftovers (make `$(...)` is legal and
-# excluded), plus {{ and @@ syntaxes.
-PLACEHOLDER_RE = re.compile(r"\$\{[A-Za-z_]|\$[A-Za-z_]|{{|@@")
+# excluded), plus {{ and @@ syntaxes. bug-027's boot-check Tcl variables are
+# exempted by the shared guard (engine/core/bootcheck.py:PLACEHOLDER_GUARD).
+PLACEHOLDER_RE = PLACEHOLDER_GUARD
 
 SRC_EXT = {"c": "c", "cpp": "c", "rust": "rs"}
 
@@ -147,7 +149,12 @@ def test_cells(pack_id: str, lang: str, tmp_path: Path) -> None:
         fpu = doc["blocks"]["fpu"]
         assert ("-mfloat-abi=soft" if fpu["mode"] == "soft" else fpu["variant"]) in text
         assert "vendor/CMSIS/CMSIS/Core/Include" in text and "-Iconfig" in text
-        assert "verify reset exit" in text, "flash helper must verify+reset"
+        # bug-027: the trailing reset is followed by the boot verify-and-retry
+        # loop, so `reset exit` no longer appears (the session `exit` is its own
+        # `-c` after the loop).
+        assert "verify reset" in text, "flash helper must verify+reset"
+        assert "reset exit" not in text, "reset must be followed by the boot check"
+        assert "mu-boot" in text, "flash helper must carry the boot verify-and-retry"
         assert "Reset_Handler" in (out / "Startup/NOTE.md").read_text()
         if lang == "cpp":
             assert "-std=c++17" in text

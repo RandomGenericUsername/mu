@@ -8,8 +8,11 @@ import yaml
 
 from engine.cli.main import PACKS_DIR, main
 from engine.cli.tests.packs import first_supported_pack
+from engine.core.bootcheck import PLACEHOLDER_GUARD
 
-PLACEHOLDER = re.compile(r"\$\{|\$[A-Za-z_]")
+# Shared guard; bug-027's boot-check Tcl variables are exempted by
+# engine/core/bootcheck.py:PLACEHOLDER_GUARD (same pattern test_cells.py uses).
+PLACEHOLDER = PLACEHOLDER_GUARD
 
 
 @pytest.fixture(autouse=True)

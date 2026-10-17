@@ -40,7 +40,7 @@ def _device_view(**kw) -> DeviceView:
         version="1.0.0",
         source_hash="sha256:test",
         cores=[Core(name="core0", arch="generic-arch")],
-        memory=[MemoryRegion(name="prog", origin_hex="0x0", size=64 * 1024)],
+        memory=[MemoryRegion(name="flash", origin_hex="0x08000000", size=64 * 1024)],
         probe_ref=Endpoint(transport="generic-probe", address="usb:0"),
         proof_rung="frame",
         openocd=OpenocdConfig(interface="iface.cfg", target="board.cfg", board="board.cfg"),
@@ -73,8 +73,10 @@ def test_openocd_argv_renders_from_model_fields_only():
     assert DUAL_CORE_TCL not in argv  # single-core: no session flag
     assert "set PROBE_ADDRESS" not in " ".join(argv)
     assert "program alpha verify reset" in argv
-    assert "program beta verify reset exit" in argv  # exit only on the last piece
-    assert " ".join(argv).count("reset exit") == 1
+    assert "program beta verify reset" in argv
+    # bug-006: still exactly one `exit`, and it is last (not a per-piece tail).
+    assert argv[-1] == "exit"
+    assert argv.count("exit") == 1
 
 
 def test_openocd_argv_dual_core_selects_target_per_piece():
@@ -86,8 +88,9 @@ def test_openocd_argv_dual_core_selects_target_per_piece():
     joined = " ".join(argv)
     assert "targets stm32h7x.cpu0" in joined and "targets stm32h7x.cpu1" in joined
     assert "program build/M7/x.elf verify reset" in joined
-    assert "program build/M4/y.elf verify reset exit" in joined
-    assert joined.count("reset exit") == 1
+    assert "program build/M4/y.elf verify reset" in joined
+    assert argv[-1] == "exit"
+    assert argv.count("exit") == 1
 
 
 def test_openocd_argv_target_only_pack_uses_target_prefix():

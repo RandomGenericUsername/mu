@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Callable, Sequence
 
 from engine.adapters import DebugHandle, PieceResult, ProbeAdapter
+from engine.core.bootcheck import boot_check_commands
 from engine.core.model import DeviceView, Endpoint, ProofResult
 
 __all__ = [
@@ -190,6 +191,28 @@ def _piece_target(device: DeviceView, index: int, count: int) -> str | None:
     return None
 
 
+def _boot_check_argv(
+    device: DeviceView, pieces: Sequence[str], last: int
+) -> list[str]:
+    """`-c <loop> -c <verdict>` for the piece that runs last (bug-027).
+
+    Only the **last** piece's boot check is emitted: it is the one whose reset
+    decides the board's final state, and an extra check per piece would halt
+    cores that were just programmed. The core is resolved the same way
+    :func:`_piece_target` resolves the target, so the checked flash bank is the
+    bank that piece was programmed into. Falls back to the first core when the
+    pack declares no per-piece targets (single-core packs).
+    """
+    index = last if _piece_target(device, last, len(pieces)) is not None else 0
+    if index >= len(device.cores):
+        index = 0
+    core = device.cores[index].name
+    out: list[str] = []
+    for command in boot_check_commands(device.memory, core):
+        out += ["-c", command]
+    return out
+
+
 class OpenOCDAdapter(ProbeAdapter):
     """``ProbeAdapter`` via ``openocd -f <interface> -f <target>``."""
 
@@ -211,9 +234,14 @@ class OpenOCDAdapter(ProbeAdapter):
 
         ``-f`` files come from the model's resolved config-file paths
         (``interface/…`` + ``board/…|target/…``, bug-003); each piece adds a
-        ``program <piece> verify reset exit`` step; DUAL_CORE models add the
+        ``program <piece> verify reset`` step; DUAL_CORE models add the
         session-listing command. Probe selection is emitted only when the
         endpoint carries a bare serial selector. Missing facts raise.
+
+        A single ``exit`` closes the session, after a boot verify-and-retry
+        loop for the last piece's core (bug-027) — the trailing reset that
+        ``program … verify reset exit`` used to end on is not reliable, and
+        ``** Verified OK **` does not mean the app is running.
         """
         config_files = device.openocd_config_files
         if not config_files:
@@ -232,8 +260,15 @@ class OpenOCDAdapter(ProbeAdapter):
             # Reset after each piece, but `exit` only on the last: a bare
             # `reset exit` (or an early per-piece `exit`) makes OpenOCD return
             # non-zero / drop later pieces (bug-006).
-            tail = "reset exit" if index == last else "reset"
-            argv += ["-c", f"program {piece} verify {tail}"]
+            argv += ["-c", f"program {piece} verify reset"]
+        if pieces:
+            # bug-027: that trailing reset intermittently latches the core
+            # into boot-from-system-memory, and `** Verified OK **` still
+            # prints — so append the shared verify-and-retry tail for the LAST
+            # piece's core (the one whose reset decides the final board state).
+            # Same commands the generated Makefile emits (engine.core.bootcheck).
+            argv += _boot_check_argv(device, pieces, last)
+            argv += ["-c", "exit"]
         return argv
 
     def flash(
