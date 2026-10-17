@@ -83,6 +83,11 @@ because it passes `--target` itself (`engine/verify/e2e.py:340`). Filed as
   Rust `README.md` ("on-board LED PA5 … blinking on M4") both overstate Rust's V1
   scope — the README is aspirational vs the `wfi` code. Needs a spec/README
   clarification (BMAD/OpenSpec territory).
+  - **Reconciled (2026-10-17) — spec half only:** `ops-032` amended `spec`
+    §Success signal + CAP-3 and `device-matrix.md:3` to state **C/C++ = flash/run +
+    observable proof; Rust = build-to-ELF parity** (dated amendment notes link back
+    here; evidence `docs/flash-run-evidence.md` §"Scope note"). The generated Rust
+    `README.md` wording is still open.
 - **Nuance (debug attach):** after a *detached* run (`probe-rs reset`, session torn
   down), a reconnect on F411RE failed with `JtagNoDeviceConnected` — consistent
   with the bare `wfi` sleep stopping the core clock with default DBGMCU.
