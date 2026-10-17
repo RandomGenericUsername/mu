@@ -26,7 +26,7 @@ A vision to realize: solo firmware developers re-derive the same MCU bring-up (t
   - **success:** From the shell, `build` and probe detection succeed with no additional installs.
 - **CAP-3**
   - **intent:** User builds and flashes an already-created project from a bare host with zero preinstalled dependencies.
-  - **success:** Clean machine runs build → flash → observable run proof for every matrix cell.
+  - **success:** Clean machine runs build → flash → observable run proof for every C/C++ matrix cell, and build-to-ELF parity for every Rust cell (amended 2026-10-17 — see `spike-008`).
 - **CAP-4**
   - **intent:** User supplies a full custom device file or individual hardware flags as the single description source.
   - **success:** A custom-described device completes create → build for at least one core.
@@ -64,6 +64,8 @@ A vision to realize: solo firmware developers re-derive the same MCU bring-up (t
 
 ## Success signal
 
-From a clean machine, each **V1 matrix cell** (3 STM32 boards × 3 languages) completes create → build → flash and the board runs its program with the pack-defined observable proof. **After V1**, the first non-STM32 cell (ESP32-CAM: `idf-cmake` build, `esptool` UART flash, UART boot log) proves the engine is general — it must land without a single `engine/core` change.
+From a clean machine, each **C/C++ V1 matrix cell** (3 STM32 boards × 2 languages) completes create → build → flash and the board runs its program with the pack-defined observable proof; each **Rust V1 matrix cell** completes create → build to a flashable ELF (build-parity). **After V1**, the first non-STM32 cell (ESP32-CAM: `idf-cmake` build, `esptool` UART flash, UART boot log) proves the engine is general — it must land without a single `engine/core` change.
 
 - Proof ladder for run verification: automated probe readback first, LED second, manual register inspection as accepted fallback; each pack declares its rung.
+
+> **Amended 2026-10-17 — see `tickets/spike-008-rust-flash-run/ticket.md`.** This originally read "each **V1 matrix cell** (3 STM32 boards × 3 languages) completes create → build → flash and the board runs". The V1 scope was narrowed on 2026-10-16 (decision option c): the flash/run + observable-proof gate rests on the **C/C++** cells per board; **Rust** is scoped to **build-to-ELF parity**, because the generated example is a bare `wfi` loop with no observable output. Evidence: `docs/flash-run-evidence.md` §"Scope note".

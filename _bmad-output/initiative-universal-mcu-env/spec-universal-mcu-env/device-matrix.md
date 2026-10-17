@@ -1,6 +1,8 @@
 # device-matrix
 
-Day-one shippable matrix. Each cell must complete create → build → flash → observable proof from a clean machine.
+Day-one shippable matrix. Each C/C++ cell must complete create → build → flash → observable proof from a clean machine; each Rust cell must complete create → build to a flashable ELF (build-parity).
+
+> **Amended 2026-10-17 — see `tickets/spike-008-rust-flash-run/ticket.md`.** This originally read "Each cell must complete create → build → flash → observable proof". The V1 scope was narrowed on 2026-10-16 (decision option c): the flash/run + observable-proof gate rests on the **C/C++** cells; **Rust** cells are **build-to-ELF parity** only, because the generated example is a bare `wfi` loop with no observable output (Rust's live flash/run works via `probe-rs` but certifies no proof — `docs/flash-run-evidence.md` §"Scope note").
 
 | Pack (board) | Cores | C | C++ | Rust | Probe backends shipped |
 |---|---|---|---|---|---|
