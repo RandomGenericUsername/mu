@@ -40,15 +40,16 @@ spine under `_bmad-output/initiative-universal-mcu-env/`.
 - 191→228 tests green. Images built+smoked (cpp:15.3.rel2, rust:1.99.0).
 - `mu create/build` proven live to ELF (F411RE C; Rust F411RE+H755 to ARM
   ELF32). 9/9 cells compile; 5/5 C ELFs from real vendor trees.
-- Open threads: registry visibility (GHCR package public vs auth-required,
-  `ops-034`, after `ops-030`); warnings policy (`ops-033`); Windows lane.
-  **Resolved since this handoff:** HW flash/run (done — `ops-027`, `ops-028`,
-  `docs/flash-run-evidence.md`); CubeCLT verdict (done — `req-027`: exclude
-  from images, optional host tool; SLA0048 permits redistribution with
-  conditions, not a prohibition); IDE attach (done — `req-016`,
-  `docs/vscode-debug.md`); registry push (done — `ops-030`, images on GHCR).
-  Still open: H755 dual-core boot semantics (HW decides), linker_for
-  fallback already removed.
+- Open threads: Windows lane; H755 dual-core boot semantics (HW decides);
+  linker_for fallback already removed.
+  **Resolved since this handoff:** warnings policy (done — `ops-033`: warn-only,
+  stated once in `docs/warnings-policy.md`); registry visibility (done —
+  `ops-034`: GHCR packages stay PRIVATE/auth-required); HW flash/run (done —
+  `ops-027`, `ops-028`, `docs/flash-run-evidence.md`); CubeCLT verdict (done —
+  `req-027`: exclude from images, optional host tool; SLA0048 permits
+  redistribution with conditions, not a prohibition); IDE attach (done —
+  `req-016`, `docs/vscode-debug.md`); registry push (done — `ops-030`, images
+  on GHCR).
 - Known machine quirk (dev box): Docker Desktop shares `/tmp` but NOT
   `~/Desktop` — mounts fail with `mkdir /host_mnt/...: operation not
   permitted`. Run docker-backed verification from `/tmp` clones there.

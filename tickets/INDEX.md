@@ -119,7 +119,7 @@
 - [ops-030-image-distribution](./ops-030-image-distribution/ticket.md) — Confirm image distribution for a clean machine (registry push state) | `done` | images pushed to ghcr (auth-required); login or `make images`
 - [ops-031-req022-closeout](./ops-031-req022-closeout/ticket.md) — Close req-022 (ESP32 family) and mark spike-007 consumed | `done` | drift close-out
 - [ops-032-rust-spec-wording](./ops-032-rust-spec-wording/ticket.md) — Amend the spec success signal for the Rust build-parity decision | `done` | spec §Success signal + CAP-3 + device-matrix:3 amended (dated); spike-008 reconciled
-- [ops-033-warnings-policy](./ops-033-warnings-policy/ticket.md) — Formalize the compiler-warnings policy | `proposed` | HANDOFF open thread
+- [ops-033-warnings-policy](./ops-033-warnings-policy/ticket.md) — Formalize the compiler-warnings policy | `done` | warn-only confirmed; policy in docs/warnings-policy.md; HANDOFF thread closed
 - [ops-034-registry-visibility](./ops-034-registry-visibility/ticket.md) — Decide GHCR image package visibility (public vs auth-required) | `done` | decided: keep PRIVATE; docs already match (auth-required)
 - [ops-035-triage-findings](./ops-035-triage-findings/ticket.md) — Triage the two dispatched investigations; file the resulting bugs/verdict | `done` | filed bug-026/027/028 + req-027 verdict
 - [ops-036-close-bug026-file-bug029](./ops-036-close-bug026-file-bug029/ticket.md) — Close bug-026 (verified + merged); file the residual as bug-029 | `done` | bug-026 verified on a fresh project; residual filed

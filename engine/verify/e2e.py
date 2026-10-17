@@ -16,7 +16,8 @@ in for the external submodule only; application sources, flags, linker
 scripts, and config headers under test are the genuine render output. Each
 evidence-log cell records that stubs were injected.
 
-Warnings are recorded per cell and never fail the cell (warn-only policy).
+Warnings policy: warn-only — recorded per cell, never failing a cell
+(``docs/warnings-policy.md`` is the authoritative statement).
 """
 
 from __future__ import annotations
