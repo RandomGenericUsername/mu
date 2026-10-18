@@ -6,7 +6,7 @@
 
 ## Epics
 
-- [epic-001-universal-framework](./epic-001-universal-framework/epic.md) — Universal MCU dev framework | `proposed` | 1/4 children done| 31/31 children done | done-when: V1 matrix (3 packs x 3 langs, OpenOCD) completes create-build-flash-run from clean machines per pack proof rituals | exec: bmad brief+spec+spine
+- [epic-001-universal-framework](./epic-001-universal-framework/epic.md) — Universal MCU dev framework | `done` | 31/31 children done | done-when: V1 matrix (3 packs x 3 langs, OpenOCD) completes create-build-flash-run from clean machines per pack proof rituals | exec: bmad brief+spec+spine
   - [bug-001-xor-probe-selectors](./bug-001-xor-probe-selectors/ticket.md) — XOR rejects probe selectors combined with --mcu-config | `done`
   - [bug-002-rust-panic-abort](./bug-002-rust-panic-abort/ticket.md) — Rendered Rust projects fail to compile (unwinding panics) | `done`
   - [req-001-product-brief](./req-001-product-brief/ticket.md) — Product brief for universal MCU dev framework | `done`
@@ -42,7 +42,7 @@
 - [epic-002-post-v1](./epic-002-post-v1/epic.md) — Post-V1 roadmap | `proposed` | 2/4 children done | done-when: every post-V1 track shipped or declined | exec: BMAD advisory
   - [req-024-dep-integration](./req-024-dep-integration/ticket.md) — C/C++ dependency integration (Conan 2 / CPM) | `proposed`
   - [req-025-windows-lane](./req-025-windows-lane/ticket.md) — Windows native lane | `proposed`
-  - [req-026-wl55-cm0p-bringup](./req-026-wl55-cm0p-bringup/ticket.md) — WL55JC CM0+ dual-core bring-up | `in-progress`
+  - [req-026-wl55-cm0p-bringup](./req-026-wl55-cm0p-bringup/ticket.md) — WL55JC CM0+ dual-core bring-up | `done`
   - [req-027-cubeclt-verdict](./req-027-cubeclt-verdict/ticket.md) — STM32CubeCLT verdict | `done`
 
 ## Requirements
@@ -125,6 +125,7 @@
 - [ops-036-close-bug026-file-bug029](./ops-036-close-bug026-file-bug029/ticket.md) — Close bug-026 (verified + merged); file the residual as bug-029 | `done` | bug-026 verified on a fresh project; residual filed
 - [ops-037-bug029-reject-file-new-bugs](./ops-037-bug029-reject-file-new-bugs/ticket.md) — Reject bug-029 (measurement error); record the spike-006 correction; file bug-030/031 | `done` | CM0+ runs at 0x2000C01C; bug-026 fix complete
 - [ops-038-close-bug030-031-026](./ops-038-close-bug030-031-026/ticket.md) — Close bug-030/bug-031/req-026 (fixes merged + verified); recount epic-002 | `done` | 360 tests; `make debug-m0plus` verified on HW
+- [ops-039-fix-index-epic001-line](./ops-039-fix-index-epic001-line/ticket.md) — Repair INDEX corruption (epic-001 line, req-026 nested status, task-005/006 mangle) | `done` | board consistent: 0 missing, 0 mismatches
 
 ## Spikes
 
@@ -138,8 +139,8 @@
 - [task-002-wire-create-renderer](./task-002-wire-create-renderer/ticket.md) — Wire create renderer | `done` | exec: direct | parent epic-001 | 159/159 tests, create renders F411RE c project, flags-only exits 2
 - [task-003-container-argv-fix](./task-003-container-argv-fix/ticket.md) — Container argv invokes build tool, not stm | `done` | 184/184 tests, live ELF proof
 - [task-004-narrow-mounts](./task-004-narrow-mounts/ticket.md) — Narrow container mounts to engine + packs | `done` | 184/184 tests, live ELF re-proof
-- [task-005-probe-default-proof-precheck](./task-005-probe-default-proof-precheck/ticket.md)
-- [task-006-backend-settings](./task-006-backend-settings/ticket.md) — Per-backend pack settings | `done` | 195/195 tests, chips verified — Pack-default probe, proof wiring, image pre-check | `done` | 191/191 tests
+- [task-005-probe-default-proof-precheck](./task-005-probe-default-proof-precheck/ticket.md) — Pack-default probe, proof wiring, image pre-check | `done` | 191/191 tests
+- [task-006-backend-settings](./task-006-backend-settings/ticket.md) — Per-backend pack settings (probe chip strings etc.) | `done` | 195/195 tests, chips verified
 - [task-007-split-probe-port](./task-007-split-probe-port/ticket.md) — R1: split the probe port into FlashPort + DebugPort | `done` | parent req-021 | 278/278 tests, argv unchanged, renderer untouched
 - [task-008-validator-relocation](./task-008-validator-relocation/ticket.md) — R2: family block validators → packs/, (family, block) keys | `done` | parent req-021 | 285/285 tests, AD-13 acceptance proven (new family, zero core diff)
 - [task-009-stack-axis](./task-009-stack-axis/ticket.md) — R3: pack-declared stacks map + toolchain registry | `done` | parent req-021 | 295/295 tests; stack (not --lang) selects image + build command
