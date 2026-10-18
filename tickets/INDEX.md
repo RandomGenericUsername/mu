@@ -126,6 +126,7 @@
 - [ops-037-bug029-reject-file-new-bugs](./ops-037-bug029-reject-file-new-bugs/ticket.md) — Reject bug-029 (measurement error); record the spike-006 correction; file bug-030/031 | `done` | CM0+ runs at 0x2000C01C; bug-026 fix complete
 - [ops-038-close-bug030-031-026](./ops-038-close-bug030-031-026/ticket.md) — Close bug-030/bug-031/req-026 (fixes merged + verified); recount epic-002 | `done` | 360 tests; `make debug-m0plus` verified on HW
 - [ops-039-fix-index-epic001-line](./ops-039-fix-index-epic001-line/ticket.md) — Repair INDEX corruption (epic-001 line, req-026 nested status, task-005/006 mangle) | `done` | board consistent: 0 missing, 0 mismatches
+- [ops-040-index-guard-test](./ops-040-index-guard-test/ticket.md) — Guard the ticket board: assert INDEX lists every ticket and its status matches | `done` | make test enforces the board
 
 ## Spikes
 
