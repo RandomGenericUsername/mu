@@ -155,7 +155,28 @@ def _oc_flash_args(device: Device) -> str:
         # sibling image via cpu0's flash bank works regardless (bug-021).
         args += " -f probe/dual-core.cfg"
     args += f" -f {target}"
+    # Flash-only reset override: a sleeping target needs SRST asserted during
+    # connect (H755 board cfg uses connect_deassert_srst). Debug configs keep
+    # their attach semantics.
+    if oc.flash_reset_config:
+        args += f" -c 'reset_config {oc.flash_reset_config}'"
     return args
+
+
+def _oc_target_line(device: Device, core_name: str) -> str:
+    """``-c "targets <core>"`` for independent dual-core flash targets.
+
+    A cpu2_boot pack is flashed single-core (the sibling is asleep), so it must
+    not select the sibling target. H755 exposes cpu0/cpu1 and needs the
+    selection so ``program`` and the PC boot check act on the right core.
+    """
+    oc = device.openocd
+    if oc is None or not oc.targets or device.facets.cpu2_boot:
+        return ""
+    for name, target in oc.targets:
+        if name == core_name:
+            return f' -c "targets {target}"'
+    return ""
 
 
 def _boot_check_cmds(device: Device, core_name: str) -> str:
@@ -412,6 +433,9 @@ def core_context(device: Device, core: Core, lang: str) -> dict:
         "oc_interface": device.openocd.interface if device.openocd else "stlink.cfg",
         "oc_cfg_path": _oc_cfg_path(device),
         "oc_flash_args": _oc_flash_args(device),
+        # Independent dual-core packs expose cpu0/cpu1; select this core for
+        # program + boot check. cpu2_boot packs stay single-core (bug-032).
+        "oc_target_line": _oc_target_line(device, core.name),
         # bug-027: the trailing reset is not reliable, so the flash recipe
         # carries the shared verify-and-retry tail for this core's flash bank.
         "boot_check_cmds": _boot_check_cmds(device, core.name),
@@ -486,7 +510,7 @@ _MAKEFILE_CORE = Template(
     "\t$$(SIZE) $$(OUT_$core).elf\n"
     "\n"
     "flash-$core: build-$core\n"
-    "\t$$(OPENOCD) $oc_flash_args -c \"program $$(OUT_$core).elf verify reset\""
+    "\t$$(OPENOCD) $oc_flash_args$oc_target_line -c \"program $$(OUT_$core).elf verify reset\""
     " $boot_check_cmds -c \"exit\"\n"
     "\n"
     "clean-$core:\n"

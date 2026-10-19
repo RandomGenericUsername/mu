@@ -290,6 +290,15 @@ fn main() -> ! {
 
         sections = []
         for core in plan.cores:
+            # H755 (independent dual) exposes cpu0/cpu1: select this core
+            # before program + boot check. cpu2_boot packs stay single-core.
+            target_line = (
+                f" -c 'targets {core.openocd_target}'"
+                if plan.flash.dual_core
+                and not plan.flash.single_core
+                and core.openocd_target
+                else ""
+            )
             sections.append(
                 _tpl(
                     """# --- core @CORE@ (@ARCH@) ---
@@ -299,7 +308,7 @@ build-@CORE@:
 	cp @SLUG@/target/@ARCH@/debug/@PKG@ @ELF@
 
 flash-@CORE@: build-@CORE@
-	$(OPENOCD) @ARGS@ -c "program @ELF@ verify reset" @BOOTCHECK@ -c "exit"
+	$(OPENOCD) @ARGS@@TARGET@ -c "program @ELF@ verify reset" @BOOTCHECK@ -c "exit"
 
 clean-@CORE@:
 	cd @SLUG@ && cargo clean
@@ -312,6 +321,7 @@ clean-@CORE@:
                     PKG=package(core),
                     ELF=elf(core),
                     ARGS=args,
+                    TARGET=target_line,
                     BOOTCHECK=(
                         r._boot_check_cmds(device, core.name)
                         if core.name == plan.primary.name

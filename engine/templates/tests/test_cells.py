@@ -162,6 +162,10 @@ def test_cells(pack_id: str, lang: str, tmp_path: Path) -> None:
             # (AT(LOADADDR(.text) + SIZEOF(.text))) does not overlap them.
             assert linker.index(".isr_vector") < linker.index(".init_array")
             assert linker.index(".init_array") < linker.index(".text :")
+        if pack_id == "stm32h755":
+            # Independent dual-core: per-core flash selects its OpenOCD target.
+            assert "targets stm32h7x.cpu0" in text
+            assert "targets stm32h7x.cpu1" in text
         fpu = doc["blocks"]["fpu"]
         assert ("-mfloat-abi=soft" if fpu["mode"] == "soft" else fpu["variant"]) in text
         assert "vendor/CMSIS/CMSIS/Core/Include" in text and "-Iconfig" in text

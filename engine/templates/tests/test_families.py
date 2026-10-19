@@ -56,6 +56,10 @@ def test_wl55_rust_dual_layout(tmp_path: Path) -> None:
     assert "ALL_FLASH = flash-M0+ flash-M4" in makefile
     assert "mu-boot" in makefile
     assert "debug-m0plus" in makefile
+    # cpu2_boot is flashed single-core: the flash recipe must not select cpu1
+    # (the attach helper legitimately does, so scope the check to the recipe).
+    flash_m0 = makefile.split("flash-M0+:", 1)[1].split("clean-M0+", 1)[0]
+    assert "targets" not in flash_m0
 
     m4x = (tmp_path / "m4/memory.x").read_text()
     m0x = (tmp_path / "m0plus/memory.x").read_text()
@@ -88,6 +92,9 @@ def test_h755_rust_dual_layout(tmp_path: Path) -> None:
     assert "__pre_init" not in (tmp_path / "m7/src/main.rs").read_text()
     makefile = (tmp_path / "Makefile").read_text()
     assert "ALL_FLASH = flash-M7 flash-M4" in makefile
+    # Independent dual-core: each flash target selects its own OpenOCD core.
+    assert "targets stm32h7x.cpu0" in makefile
+    assert "targets stm32h7x.cpu1" in makefile
 
 
 def test_single_core_rust_is_unchanged(tmp_path: Path) -> None:
