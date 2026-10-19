@@ -138,6 +138,7 @@
 - [spike-006-wl55-cm0p-bringup](./spike-006-wl55-cm0p-bringup/ticket.md) — WL55JC CM0+ bring-up: C2BOOT doesn't persist and the CM0+ double-faults | `reported` | boxed 4h — M4 works; CM0+ needs security/RAM investigation
 - [spike-007-esp32-cam](./spike-007-esp32-cam/ticket.md) — First non-STM32 board: what does an ESP32-CAM pack require? | `consumed` | boxed 4h — verdict: extend (blocks/backends/image), new-kind template family + verify cell; IDF mandatory, JTAG out. 2026-10-16: synced to main (`1eb9407`, 276 tests); IDF pinned `v6.1` (amd64+arm64, digest); owner-bench UART proven live (esptool → ESP32-D0WD rev1.0, 4MB flash, MAC 30:83:98:57:5f:c4) — Q1 closed
 - [spike-008-rust-flash-run](./spike-008-rust-flash-run/ticket.md) — Rust live flash/run: is it a V1 gate, and does probe-rs flash F411RE/H755? | `reported` | boxed 3h — probe-rs flashes+verifies+runs both boards; **decision: Rust = build-parity for V1** (no LED/wfi proof); bug-025 fixed (mu build --target)
+- [spike-009-esp32-idf-rust-cpp](./spike-009-esp32-idf-rust-cpp/ticket.md) — ESP32-CAM ESP-IDF Rust + C++ toolchain feasibility | `reported` | boxed 3h — Rust+C++ IDF build validated; IDF v6.1; espflash; live flash pending manual GPIO0; per-stack flash_backend
 
 ## Tasks
 
