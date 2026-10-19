@@ -40,6 +40,12 @@ def _validate_openocd(payload: Any) -> None:
             raise ValueError(f"openocd block {key!r} must be a non-empty string")
     if "dual_core" in payload and not isinstance(payload["dual_core"], bool):
         raise ValueError("openocd block 'dual_core' flag must be a bool")
+    if "flash_reset_config" in payload:
+        value = payload["flash_reset_config"]
+        if not isinstance(value, str) or not value:
+            raise ValueError(
+                "openocd block 'flash_reset_config' must be a non-empty string"
+            )
     if "targets" in payload:
         targets = payload["targets"]
         if not isinstance(targets, dict) or not targets:

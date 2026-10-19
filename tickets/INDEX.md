@@ -129,6 +129,7 @@
 - [ops-038-close-bug030-031-026](./ops-038-close-bug030-031-026/ticket.md) — Close bug-030/bug-031/req-026 (fixes merged + verified); recount epic-002 | `done` | 360 tests; `make debug-m0plus` verified on HW
 - [ops-039-fix-index-epic001-line](./ops-039-fix-index-epic001-line/ticket.md) — Repair INDEX corruption (epic-001 line, req-026 nested status, task-005/006 mangle) | `done` | board consistent: 0 missing, 0 mismatches
 - [ops-040-index-guard-test](./ops-040-index-guard-test/ticket.md) — Guard the ticket board: assert INDEX lists every ticket and its status matches | `done` | make test enforces the board
+- [ops-041-h755-rust-live](./ops-041-h755-rust-live/ticket.md) — H755ZI-Q Rust dual-core live proof (create → build → flash → run) | `done` | 399 tests; H755 live proof + sleeping-target flash fix
 
 ## Spikes
 

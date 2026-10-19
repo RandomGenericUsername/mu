@@ -46,6 +46,9 @@ blocks:
     interface: stlink-dap.cfg
     board: st_nucleo_h745zi.cfg
     dual_core: true
+    # A H755 running a low-power image cannot be examined with the board cfg's
+    # connect_deassert_srst; assert SRST during connect for flash only.
+    flash_reset_config: "srst_only srst_open_drain connect_assert_srst"
     # Core -> OpenOCD target names (board cfg creates these); lets a two-piece
     # flash land M7 and M4 images on their own cores (bug-006).
     targets:

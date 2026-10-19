@@ -117,6 +117,11 @@ class OpenocdConfig:
     target: str
     dual_core: bool = False
     board: str | None = None
+    #: Optional ``reset_config`` for flash only. Needed when the target may be
+    #: in a low-power state at connect (e.g. NUCLEO-H755ZI-Q): the board cfg's
+    #: ``connect_deassert_srst`` cannot examine a sleeping core, so flashing
+    #: asserts SRST during connect. Debug configs are unaffected.
+    flash_reset_config: str | None = None
     #: Optional core -> OpenOCD target name map (for per-core multi-piece flash).
     targets: Tuple[Tuple[str, str], ...] = ()
 
@@ -129,6 +134,10 @@ class OpenocdConfig:
             raise ValueError("OpenocdConfig.dual_core must be a bool")
         if self.board is not None and not self.board:
             raise ValueError("OpenocdConfig.board must be a non-empty string or None")
+        if self.flash_reset_config is not None and not self.flash_reset_config:
+            raise ValueError(
+                "OpenocdConfig.flash_reset_config must be a non-empty string or None"
+            )
         pairs = tuple(sorted(self.targets.items())) if isinstance(self.targets, dict) else tuple(self.targets)
         for core, name in pairs:
             if not isinstance(core, str) or not core or not isinstance(name, str) or not name:
@@ -431,6 +440,7 @@ class DeviceView:
     openocd_interface: str | None = None
     openocd_target: str | None = None
     openocd_dual_core: bool = False
+    openocd_flash_reset_config: str | None = None
     #: True when the pack must be flashed single-core, sibling-first (a
     #: released sibling cannot be reset; req-028 / bug-021/023/024).
     flash_single_core: bool = False
@@ -475,6 +485,9 @@ class DeviceView:
             openocd_interface=device.openocd.interface if device.openocd else None,
             openocd_target=device.openocd.target if device.openocd else None,
             openocd_dual_core=device.openocd.dual_core if device.openocd else False,
+            openocd_flash_reset_config=(
+                device.openocd.flash_reset_config if device.openocd else None
+            ),
             flash_single_core=bool(device.facets.cpu2_boot),
             openocd_config_files=device.openocd.config_files() if device.openocd else None,
             openocd_targets=device.openocd.targets if device.openocd else (),

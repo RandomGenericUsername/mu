@@ -256,6 +256,10 @@ class OpenOCDAdapter(ProbeAdapter):
         if not config_files:
             raise ValueError("device model carries no openocd config-file facts")
         argv = ["openocd", "-f", config_files[0], "-f", config_files[1]]
+        if device.openocd_flash_reset_config:
+            # Flash-only: assert SRST during connect so a sleeping target is
+            # examinable. Set before `program` (which triggers init).
+            argv += ["-c", f"reset_config {device.openocd_flash_reset_config}"]
         if device.openocd_dual_core and not device.flash_single_core:
             argv += ["-c", DUAL_CORE_TCL]
         serial = _serial_selector(endpoint.address)

@@ -9,7 +9,8 @@ fallback (`spec:69`).
 | Pack (board) | Probe | OpenOCD target | Flash | Run proof | Recorded |
 | --- | --- | --- | --- | --- | --- |
 | `stm32f411re` (NUCLEO-F411RE) | `0483:3752` | `stlink.cfg` + `board/st_nucleo_f4.cfg` | `Verified OK` | LD2 (PA5) toggles ~1 Hz; PC in `delay_half_period` | 2026-10-14 |
-| `stm32h755` (NUCLEO-H755ZI-Q) | `0483:3754` | `stlink-dap.cfg` + `board/st_nucleo_h745zi.cfg` (+ `DUAL_CORE`) | `Verified OK` ×2 (both banks) | M7 LD2 toggles; M4 `counter` increments | 2026-10-14 |
+| `stm32h755` (NUCLEO-H755ZI-Q), C/C++ | `0483:3754` | `stlink-dap.cfg` + `board/st_nucleo_h745zi.cfg` (+ `DUAL_CORE`) | `Verified OK` ×2 (both banks) | M7 LD2 toggles; M4 `counter` increments | 2026-10-14 |
+| `stm32h755` (NUCLEO-H755ZI-Q), Rust dual (ops-041) | `0483:3754` | `stlink-dap.cfg` + `board/st_nucleo_h745zi.cfg` (`connect_assert_srst`) | `Verified OK` ×2 (M7 then M4) | M7 `GPIOE_ODR` toggles `0x2 ↔ 0x0`; M4 `pc=0x08100474`, `COUNTER=0x2E3`; probe-rs cores `cm7`/`cm4` | 2026-10-19 |
 | `stm32wl55jc` (NUCLEO-WL55JC), C/C++ | `0483:374e` | `stlink-dap.cfg` + `target/stm32wlx.cfg` | `Verified OK` ×2 (M0+ then M4) | M4 LD1 (PB15) toggles; `GPIOB_ODR` bit 15 flips | 2026-10-16 |
 | `stm32wl55jc` (NUCLEO-WL55JC), Rust dual (req-028) | `0483:374e` | `stlink-dap.cfg` + `target/stm32wlx.cfg` | `Verified OK` ×2 (M0+ then M4) | M4 `GPIOB_ODR` toggles; M0+ `pc=0x0802010c`, `COUNTER=0xA7`; `PWR_CR4=0x8000`, `SRRVR=0xfeff8000` | 2026-10-19 |
 
@@ -68,6 +69,25 @@ openocd -f interface/stlink-dap.cfg -f probe/probe-serial.cfg -f target/stm32wlx
   -c 'init' -c 'targets stm32wlx.cpu0' -c 'halt' -c 'mdw 0x48000414 1' \
   -c 'resume' -c 'sleep 260' -c 'halt' -c 'mdw 0x48000414 1' -c 'resume' -c 'shutdown'
 # → 0x48000414: 00008000 / 00000000  (PB15 toggles)
+```
+
+H755 Rust dual (ops-041) reproduction — the pack carries a flash-only
+`reset_config ... connect_assert_srst` (a sleeping H755 cannot be examined with
+the board cfg's `connect_deassert_srst`), and each flash target selects its own
+OpenOCD core (`cpu0` M7 / `cpu1` M4):
+
+```sh
+mu create --mcu-config stm32h755 --lang rust --name h755-rust --path /tmp/opencode/h755
+cd /tmp/opencode/h755/h755-rust
+docker run --rm --device-cgroup-rule 'c 189:* rmw' -v /dev/bus/usb:/dev/bus/usb \
+  -v "$PWD":/work -w /work -e MU_PROBE_SERIAL=0023004B3132511438363431 \
+  ghcr.io/randomgenericusername/lang-rust:1.99.0 make flash
+# → ** Verified OK ** (M7) then ** Verified OK ** (M4); both mu-boot: verified
+
+openocd -f interface/stlink-dap.cfg -f probe/probe-serial.cfg \
+  -f board/st_nucleo_h745zi.cfg -c 'init' -c 'targets stm32h7x.cpu1' \
+  -c 'halt' -c 'reg pc' -c 'mdw 0x30047ff8 1' -c 'resume' -c 'shutdown'
+# → pc 0x08100474; COUNTER 0x000002e3
 ```
 
 ## Scope note

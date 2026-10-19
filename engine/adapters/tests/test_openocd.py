@@ -268,3 +268,14 @@ def test_cpu2_boot_pack_flashes_single_core_sibling_first():
     # The primary owns the release/boot state; check its window (not cpu1's).
     assert "$mu_pc >= 0x8000000 && $mu_pc < 0x8020000" in joined
     assert "stm32wlx.cpu1" not in joined
+
+
+def test_h755_flash_asserts_srst_during_connect():
+    """A sleeping H755 cannot be examined with connect_deassert_srst; the
+    pack's flash-only reset_config must reach the flash argv (ops-041)."""
+    view = DeviceView.of(load_file(PACKS / "stm32h755.yaml"))
+    argv = OpenOCDAdapter().render_argv(view, _endpoint(), ["m7.elf", "m4.elf"])
+    assert (
+        "reset_config srst_only srst_open_drain connect_assert_srst"
+        in " ".join(argv)
+    )
