@@ -107,3 +107,25 @@ def test_idf_vscode_flow_has_no_cortex_debug_or_launch(tmp_path) -> None:
     blob = "".join(p.read_text() for p in vscode.iterdir())
     assert "cortex-debug" not in blob and "openocd" not in blob.lower()
     assert not (tmp_path / "probe").exists()
+
+
+def test_idf_cpp_tree_uses_main_cpp(tmp_path) -> None:
+    """req-030: C++ is a language delta of the same IDF component."""
+    device = load_file(PACKS_DIR / "esp32cam.yaml")
+    written = render(device, "cpp", tmp_path)
+    names = {p.relative_to(tmp_path).as_posix() for p in written}
+    assert "main/main.cpp" in names
+    assert "main/main.c" not in names
+    main = (tmp_path / "main" / "main.cpp").read_text()
+    assert 'extern "C" void app_main' in main
+    assert "std::printf" in main
+    cmake = (tmp_path / "main" / "CMakeLists.txt").read_text()
+    assert 'SRCS "main.cpp"' in cmake
+    assert (tmp_path / ".mu" / "stack").read_text().strip() == "idf-cmake"
+
+
+def test_idf_cpp_vscode_flow_is_log_based(tmp_path) -> None:
+    device = load_file(PACKS_DIR / "esp32cam.yaml")
+    render(device, "cpp", tmp_path, vscode=True)
+    assert (tmp_path / ".vscode" / "tasks.json").is_file()
+    assert not (tmp_path / ".vscode" / "launch.json").exists()

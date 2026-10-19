@@ -96,6 +96,9 @@ class ShimRequest:
     name: str = ""
     #: Shell fragment enabling the toolchain in shells we start (from the stack).
     env_setup: str = ""
+    #: ``docker run --user`` value (empty = image default). Some toolchain
+    #: images need root to open a host-owned serial tty.
+    container_user: str = ""
 
 
 def engine_root() -> Path:
@@ -403,6 +406,7 @@ def _container_prefix(
         CONTAINER_RUNTIME,
         "run",
         *(["-d", "--name", request.name] if detach else ["--rm", *interactive_args(request)]),
+        *(["--user", request.container_user] if request.container_user else []),
         *docker_devices,
         "-v",
         f"{project_abs}:{CONTAINER_PROJECT}:rw",

@@ -329,9 +329,19 @@ def _prepare_flash(args: argparse.Namespace) -> tuple[Device, Endpoint, FlashPor
             file=sys.stderr,
         )
         return None
+    # AD-11: the resolved stack may pin its own flash backend; the pack
+    # default is the fallback.
+    backend = getattr(args, "probe", None)
+    if not backend:
+        try:
+            _ensure_stacks()
+            stack_id, _ = _stack_id_for(args)
+            backend = stack_spec(stack_id).flash_backend or device.probe_backend
+        except (ValueError, FileNotFoundError):
+            backend = device.probe_backend
     try:
         adapter = get_adapter(
-            getattr(args, "probe", None) or device.probe_backend,
+            backend,
             stream=True,
             log_path=_verbose_log_path(args) if getattr(args, "verbose", False) else None,
         )
@@ -361,6 +371,12 @@ def _stack_env_setup(stack_id: str) -> str:
     """Shell fragment that enables the stack's toolchain (from StackSpec)."""
     _ensure_stacks()
     return stack_spec(stack_id).env_setup
+
+
+def _stack_container_user(stack_id: str) -> str:
+    """Container user override for the stack (empty = image default)."""
+    _ensure_stacks()
+    return stack_spec(stack_id).container_user
 
 
 def _wait_dev_ready(name: str, binary: str, *, timeout_s: float = 30.0) -> bool:
@@ -408,6 +424,7 @@ def _run_dev_detach(args: argparse.Namespace, stack_id: str, device: Device | No
         detach=True,
         name=name,
         env_setup=_stack_env_setup(stack_id),
+        container_user=_stack_container_user(stack_id),
     )
     try:
         argv = build_container_argv(request, lookup=DefaultImageLookup())
@@ -629,6 +646,7 @@ def _run_verb(args: argparse.Namespace) -> int:
         mcu_config=args.mcu_config,
         stack=stack_id,
         probe_transport=device.probe_ref.transport if device is not None else "",
+        container_user=_stack_container_user(stack_id),
     )
     try:
         argv = build_container_argv(request, lookup=DefaultImageLookup())

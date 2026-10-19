@@ -32,6 +32,13 @@ class StackSpec:
     #: ``. /opt/esp/idf/export.sh``). Empty when the image already puts its
     #: toolchain on PATH for every shell.
     env_setup: str = ""
+    #: Probe backend that programs this stack's artifacts, when it differs
+    #: from the pack's ``probe_backend`` (e.g. esptool triplet vs espflash ELF).
+    flash_backend: str = ""
+    #: Container user for the toolchain image (empty = image default). Needed
+    #: when the image's default user cannot open the forwarded serial device
+    #: (e.g. esp-idf-rust's ``esp`` user vs a host ``uucp`` tty).
+    container_user: str = ""
 
     def __post_init__(self) -> None:
         for name in ("stack_id", "template_family", "image"):
@@ -42,6 +49,10 @@ class StackSpec:
         if not argv or not all(isinstance(arg, str) and arg for arg in argv):
             raise ValueError("StackSpec.build_argv must be a non-empty sequence of non-empty strings")
         object.__setattr__(self, "build_argv", argv)
+        if not isinstance(self.flash_backend, str):
+            raise ValueError("StackSpec.flash_backend must be a string")
+        if not isinstance(self.container_user, str):
+            raise ValueError("StackSpec.container_user must be a string")
 
 
 _REGISTRY: dict[str, StackSpec] = {}
