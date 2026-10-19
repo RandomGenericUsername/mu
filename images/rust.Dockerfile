@@ -35,7 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # rustup: download + verify against published sidecar AND recorded pin, then
-# install pinned Rust toolchain + both thumbv7em targets.
+# install pinned Rust toolchain + both thumbv7em targets + thumbv6m (M0+).
 RUN curl -fsSL -o /tmp/rustup-init "${RUSTUP_INIT_URL}" \
     && curl -fsSL -o /tmp/rustup-init.sha256 "${RUSTUP_INIT_URL}.sha256" \
     && grep -q "${RUSTUP_INIT_SHA256}" /tmp/rustup-init.sha256 \
@@ -43,7 +43,7 @@ RUN curl -fsSL -o /tmp/rustup-init "${RUSTUP_INIT_URL}" \
     && chmod +x /tmp/rustup-init \
     && /tmp/rustup-init -y --profile minimal --default-toolchain "${RUST_TOOLCHAIN}" \
     && rm /tmp/rustup-init /tmp/rustup-init.sha256 \
-    && rustup target add thumbv7em-none-eabihf thumbv7em-none-eabi --toolchain "${RUST_TOOLCHAIN}" \
+    && rustup target add thumbv7em-none-eabihf thumbv7em-none-eabi thumbv6m-none-eabi --toolchain "${RUST_TOOLCHAIN}" \
     && rustc --version && rustup target list --installed --toolchain "${RUST_TOOLCHAIN}"
 
 # probe-rs prebuilt tools: download + sha256 verify + install to /usr/local/bin.

@@ -31,9 +31,10 @@ them; re-record, do not silently float).
 
 Built digests (2026-10-09, `FROM --platform=linux/amd64`, Docker 29.8.2):
 - cpp: `randomgenericusername/lang-cpp:15.3.rel2 @ sha256:27d29e05159fc71ddb6a2218de653ad401786cd81163cfcba86948642fa3a50d` (2.02GB, amd64).
-- rust: `randomgenericusername/lang-rust:1.99.0 @ sha256:814093c2800a7ab6db48e52af71146ae09189d1bc7a810b7ac4416cb15c60c56` (amd64). Smoke: rustc 1.99.0 (b940084d7), probe-rs 0.32.0, both thumbv7em targets, OpenOCD c8d973bda.
-  Smoke: `rustc 1.99.0 (b940084d7)`, both thumbv7em targets, `probe-rs 0.32.0`,
-  flip-link in cargo bin, OpenOCD `0.12.0+dev-00664-gc8d973bda`.
+- rust: `randomgenericusername/lang-rust:1.99.0 @ sha256:49e8cc060999644690541da88b20af3b5ad21c62d91d02da9af604348e0f0e2d` (amd64). Smoke: rustc 1.99.0 (b940084d7), probe-rs 0.32.0, thumbv7em (both) + thumbv6m targets, OpenOCD c8d973bda.
+  Smoke: `rustc 1.99.0 (b940084d7)`, `thumbv7em-none-eabi`, `thumbv7em-none-eabihf`,
+  `thumbv6m-none-eabi`, `probe-rs 0.32.0`, flip-link in cargo bin,
+  OpenOCD `0.12.0+dev-00664-gc8d973bda`.
 
 Note: `FromPlatformFlagConstDisallowed` lint warning on `FROM
 --platform=linux/amd64` is intentional (x86_64-only toolchain tarballs) — keep.

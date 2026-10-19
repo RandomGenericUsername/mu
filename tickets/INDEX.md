@@ -39,11 +39,12 @@
   - [task-005-probe-default-proof-precheck](./task-005-probe-default-proof-precheck/ticket.md) — Pack-default probe, proof wiring, image pre-check | `done`
   - [task-006-backend-settings](./task-006-backend-settings/ticket.md) — Per-backend pack settings (probe chip strings etc.) | `done`
 
-- [epic-002-post-v1](./epic-002-post-v1/epic.md) — Post-V1 roadmap | `proposed` | 2/4 children done | done-when: every post-V1 track shipped or declined | exec: BMAD advisory
+- [epic-002-post-v1](./epic-002-post-v1/epic.md) — Post-V1 roadmap | `proposed` | 3/5 children done | done-when: every post-V1 track shipped or declined | exec: BMAD advisory
   - [req-024-dep-integration](./req-024-dep-integration/ticket.md) — C/C++ dependency integration (Conan 2 / CPM) | `proposed`
   - [req-025-windows-lane](./req-025-windows-lane/ticket.md) — Windows native lane | `proposed`
   - [req-026-wl55-cm0p-bringup](./req-026-wl55-cm0p-bringup/ticket.md) — WL55JC CM0+ dual-core bring-up | `done`
   - [req-027-cubeclt-verdict](./req-027-cubeclt-verdict/ticket.md) — STM32CubeCLT verdict | `done`
+  - [req-028-rust-dual-core](./req-028-rust-dual-core/ticket.md) — Rust dual-core parity: plan-driven template families | `done` | openspec: req-028-rust-dual-core
 
 ## Requirements
 
@@ -88,6 +89,7 @@
 - [bug-029-cm0p-released-not-running](./bug-029-cm0p-released-not-running/ticket.md) — CM0+ is released (C2BOOT=0x8000) but still does not run — sibling counter stays 0 | `rejected` | measurement error: probed 0x2000C000 (completed.1); real counter 0x2000C01C advances — bug-026 fix is complete
 - [bug-030-m0plus-attach-path](./bug-030-m0plus-attach-path/ticket.md) — WL55JC flash path never creates stm32wlx.cpu1; no generated way to attach the M0+ after make flash | `done` | S2, generated `make debug-m0plus` (attach-only, no reset); pc in M0+ main loop verified on HW
 - [bug-031-cpu2boot-masks-bug027](./bug-031-cpu2boot-masks-bug027/ticket.md) — probe/cpu2-boot.cfg writes C2BOOT on examine-end, masking bug-027 and invalidating sibling-release measurements | `done` | S3, cfg removed from the render path; C2BOOT now tracks the running CM0+ exactly (6/10)
+- [bug-032-cpp-sibling-boot-check](./bug-032-cpp-sibling-boot-check/ticket.md) — C++ WL55 `flash-M0+` prints a false `DID NOT BOOT` (sibling not released yet) | `triage` | S3, sibling boot check must be omitted; Rust family already does
 - [bug-027-intermittent-reset-boot](./bug-027-intermittent-reset-boot/ticket.md) — M4 app starts only ~2/6 times after an OpenOCD reset (sits in ROM at 0x1fff2cc0) | `done` | S2, debugger-reset-only (physical 20/20); verify-and-retry fix: flash reliability 5/10 -> 20/20
 - [bug-028-cpu2boot-cfg-premise](./bug-028-cpu2boot-cfg-premise/ticket.md) — cpu2-boot.cfg asserts a false premise (CPU2 clears C2BOOT) and clobbers PWR_CR4 | `done` | S3, masked `mmw` + correct C2BOOT premise; 357 tests, no hw re-flash needed
 

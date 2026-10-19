@@ -20,6 +20,7 @@ from engine.verify.e2e import (
     VENDOR_STUB_S,
     assert_fits,
     build_cpp_cell,
+    check_core_memory_x,
     check_memory_x,
     inject_vendor_stubs,
     parse_memory_x,
@@ -90,13 +91,15 @@ def test_check_memory_x_ok(tmp_path: Path) -> None:
     assert any("FLASH" in line for line in report)
 
 
-def test_check_memory_x_aliases_ok() -> None:
+def test_check_core_memory_x_per_core(tmp_path: Path) -> None:
     device = load_file(PACKS_DIR / "stm32h755.yaml")
-    tmp = Path("/tmp/req009-h755-memx")
-    tmp.mkdir(exist_ok=True)
-    render(device, "rust", tmp)
-    report = check_memory_x(device, (tmp / "memory.x").read_text())
-    assert len(report) == 4  # flash_m7 + flash_m4 + ram_m7 + ram_m4, aliases accepted
+    render(device, "rust", tmp_path)
+    m7 = check_core_memory_x(device, "M7", (tmp_path / "m7" / "memory.x").read_text())
+    m4 = check_core_memory_x(device, "M4", (tmp_path / "m4" / "memory.x").read_text())
+    assert any("FLASH" in line for line in m7)
+    assert any("FLASH" in line for line in m4)
+    assert "0x08000000" in m7[0]
+    assert "0x08100000" in m4[0]
 
 
 def test_check_memory_x_mismatch_negative(tmp_path: Path) -> None:

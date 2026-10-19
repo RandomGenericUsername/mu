@@ -6,7 +6,7 @@ family: stm32h7
 stacks:
   c: make-cmsis
   cpp: make-cmsis
-  rust: cargo-cortex
+  rust: cargo-cortex-dual
 cores:
   - name: M7
     arch: thumbv7em-none-eabihf

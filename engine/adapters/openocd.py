@@ -180,6 +180,10 @@ def _piece_target(device: DeviceView, index: int, count: int) -> str | None:
     names, and one piece is supplied per core (in core order). Otherwise the
     tool's default target is used.
     """
+    if device.flash_single_core:
+        # A released sibling is asleep at reset; its AP writes fail. Program
+        # every piece through the primary's session, sibling-first (req-028).
+        return None
     if not device.openocd_dual_core or not device.openocd_targets:
         return None
     if count != len(device.cores):
@@ -203,10 +207,15 @@ def _boot_check_argv(
     bank that piece was programmed into. Falls back to the first core when the
     pack declares no per-piece targets (single-core packs).
     """
-    index = last if _piece_target(device, last, len(pieces)) is not None else 0
-    if index >= len(device.cores):
-        index = 0
-    core = device.cores[index].name
+    if device.flash_single_core:
+        # The primary is the last piece (sibling-first order) and owns the
+        # release/boot state; check its flash window, not the sibling's.
+        core = device.cores[0].name
+    else:
+        index = last if _piece_target(device, last, len(pieces)) is not None else 0
+        if index >= len(device.cores):
+            index = 0
+        core = device.cores[index].name
     out: list[str] = []
     for command in boot_check_commands(device.memory, core):
         out += ["-c", command]
@@ -247,7 +256,7 @@ class OpenOCDAdapter(ProbeAdapter):
         if not config_files:
             raise ValueError("device model carries no openocd config-file facts")
         argv = ["openocd", "-f", config_files[0], "-f", config_files[1]]
-        if device.openocd_dual_core:
+        if device.openocd_dual_core and not device.flash_single_core:
             argv += ["-c", DUAL_CORE_TCL]
         serial = _serial_selector(endpoint.address)
         if serial is not None:

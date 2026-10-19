@@ -21,8 +21,13 @@ __all__ = ["first_supported_pack"]
 
 
 def first_supported_pack() -> tuple[str, Path]:
-    """(id, path) of a shipped pack the renderer + probe registry support today."""
+    """(id, path) of a shipped pack the renderer + probe registry support today.
+
+    Prefer a ``c-cmsis`` pack so CLI tests exercise the Makefile flow; other
+    shipped families (e.g. ESP-IDF's CMake) are a fallback.
+    """
     ensure_registered()
+    fallback: tuple[str, Path] | None = None
     for path in sorted(Path(PACKS_DIR).glob("*.yaml")):
         device = load_file(path)
         stack_id = device.stack_for("c")
@@ -39,5 +44,10 @@ def first_supported_pack() -> tuple[str, Path]:
                 get_adapter(device.probe_backend)
             except ValueError:
                 continue  # backend not shipped yet
-        return device.id, path
+        if family == "c-cmsis":
+            return device.id, path
+        if fallback is None:
+            fallback = (device.id, path)
+    if fallback is not None:
+        return fallback
     raise AssertionError("no fully supported shipped pack found")

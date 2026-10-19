@@ -10,7 +10,13 @@ from __future__ import annotations
 
 from engine.core.stacks import StackSpec, register_stack
 
-__all__ = ["CARGO_CORTEX", "IDF_CMAKE", "MAKE_CMSIS", "ensure_registered"]
+__all__ = [
+    "CARGO_CORTEX",
+    "CARGO_CORTEX_DUAL",
+    "IDF_CMAKE",
+    "MAKE_CMSIS",
+    "ensure_registered",
+]
 
 #: ARM GCC + CMSIS device trees, built with make (C and C++).
 MAKE_CMSIS = StackSpec(
@@ -25,6 +31,15 @@ CARGO_CORTEX = StackSpec(
     stack_id="cargo-cortex",
     template_family="rust-cortex",
     build_argv=("cargo", "build"),
+    image="ghcr.io/randomgenericusername/lang-rust:1.99.0",
+)
+
+#: Rust dual-core: one cargo package per core, driven by the generated
+#: Makefile (Cargo cannot select two `--target`s in one invocation).
+CARGO_CORTEX_DUAL = StackSpec(
+    stack_id="cargo-cortex-dual",
+    template_family="rust-cortex-dual",
+    build_argv=("make", "build"),
     image="ghcr.io/randomgenericusername/lang-rust:1.99.0",
 )
 
@@ -44,7 +59,7 @@ IDF_CMAKE = StackSpec(
     env_setup=". /opt/esp/idf/export.sh",
 )
 
-_SHIPPED = (MAKE_CMSIS, CARGO_CORTEX, IDF_CMAKE)
+_SHIPPED = (MAKE_CMSIS, CARGO_CORTEX, CARGO_CORTEX_DUAL, IDF_CMAKE)
 
 
 def ensure_registered() -> None:

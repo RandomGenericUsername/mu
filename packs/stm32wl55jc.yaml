@@ -7,7 +7,7 @@ family: stm32wl
 stacks:
   c: make-cmsis
   cpp: make-cmsis
-  rust: cargo-cortex
+  rust: cargo-cortex-dual
 cores:
   - name: M4
     arch: thumbv7em-none-eabi

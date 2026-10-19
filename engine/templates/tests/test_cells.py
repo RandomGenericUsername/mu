@@ -50,6 +50,11 @@ def _pack_doc(pack_id: str) -> dict:
     return yaml.safe_load((PACKS_DIR / f"{pack_id}.yaml").read_text())
 
 
+def _core_slug(name: str) -> str:
+    lowered = name.lower().replace("+", "plus")
+    return "".join(ch for ch in lowered if ch.isalnum())
+
+
 def expected_files(pack_id: str, lang: str) -> list[str]:
     """Checklist-encoded file list per cell (literals, not renderer-derived)."""
     doc = _pack_doc(pack_id)
@@ -62,6 +67,17 @@ def expected_files(pack_id: str, lang: str) -> list[str]:
             files.append(f"src/main-{core['name']}.c")
             files.append(f"linker/{linker[core['name']]}")
         files.append("Startup/NOTE.md")
+    elif doc.get("stacks", {}).get("rust") == "cargo-cortex-dual":
+        files = ["Makefile"]
+        for core in doc["cores"]:
+            slug = _core_slug(core["name"])
+            files += [
+                f"{slug}/Cargo.toml",
+                f"{slug}/.cargo/config.toml",
+                f"{slug}/build.rs",
+                f"{slug}/memory.x",
+                f"{slug}/src/main.rs",
+            ]
     else:
         files = [*base, ".cargo/config.toml", "memory.x", "build.rs", "src/main.rs"]
     files += [
@@ -159,28 +175,65 @@ def test_cells(pack_id: str, lang: str, tmp_path: Path) -> None:
         if lang == "cpp":
             assert "-std=c++17" in text
     else:
-        cargo = (out / "Cargo.toml").read_text()
-        for crate, pin in RUST_PINS.items():
-            assert f'{crate} = "{pin}"' in cargo, f"pin {crate} missing"
-        assert 'flip-link = "0.1.12"' in cargo
-        # bug-002: no_std targets cannot unwind — both profiles must abort.
-        assert cargo.count('panic = "abort"') >= 2, "panic=abort missing from profiles"
-        memx = (out / "memory.x").read_text()
-        for region in doc["memory"]:
-            origin = int(region["origin_hex"], 16)
-            assert f"0x{origin:08X}" in memx, f"region {region['name']} origin missing"
-            assert str(region["size"]) in memx, f"region {region['name']} size missing"
-        assert "_stack_start" in memx
-        build_rs = (out / "build.rs").read_text()
-        assert "-Tlink.x" in build_rs and "rerun-if-changed" in build_rs
-        main_rs = (out / "src/main.rs").read_text()
-        assert "#[entry]" in main_rs and "wfi" in main_rs
-        # bug-025: cargo must pin the pack arch as the build target, or
-        # `mu build`/`cargo build` compile for the host and fail to link.
-        cargo_cfg = (out / ".cargo/config.toml").read_text()
-        assert f'target = "{doc["cores"][0]["arch"]}"' in cargo_cfg, (
-            "cargo build target not pinned to the pack arch"
-        )
+        is_dual = doc.get("stacks", {}).get("rust") == "cargo-cortex-dual"
+        if is_dual:
+            text = (out / "Makefile").read_text()
+            for index, core in enumerate(doc["cores"]):
+                slug = _core_slug(core["name"])
+                assert f"build-{core['name']}" in text, "per-core build target missing"
+                assert f"flash-{core['name']}" in text, "per-core flash target missing"
+                assert f"clean-{core['name']}" in text, "per-core clean target missing"
+                cargo = (out / slug / "Cargo.toml").read_text()
+                for crate, pin in RUST_PINS.items():
+                    assert f'{crate} = "{pin}"' in cargo, f"pin {crate} missing"
+                assert cargo.count('panic = "abort"') >= 2
+                assert 'opt-level = "s"' in cargo, "C++ parity: dev profile must be -Os-like"
+                cargo_cfg = (out / slug / ".cargo/config.toml").read_text()
+                assert f'target = "{core["arch"]}"' in cargo_cfg
+                assert 'linker = "flip-link"' in cargo_cfg
+                memx = (out / slug / "memory.x").read_text()
+                assert "FLASH" in memx and "RAM" in memx and "_stack_start" in memx
+                flash = next(
+                    r for r in doc["memory"]
+                    if "flash" in r["name"] and core["name"] in r.get("cores", [core["name"]])
+                )
+                assert f"0x{int(flash['origin_hex'], 16):08X}" in memx
+                build_rs = (out / slug / "build.rs").read_text()
+                assert "-Tlink.x" in build_rs and "rerun-if-changed" in build_rs
+                main = (out / slug / "src/main.rs").read_text()
+                assert "#[entry]" in main
+                if index == 0:
+                    assert "delay_half_period" in main, "primary LED example missing"
+                    if doc.get("blocks", {}).get("example", {}).get("cpu2_boot"):
+                        assert "__pre_init" in main and "0x5800040C" in main
+                else:
+                    assert "COUNTER" in main, "sibling counter missing"
+            assert "mu-boot" in text, "flash target must carry the boot retry"
+            if doc.get("blocks", {}).get("example", {}).get("cpu2_boot"):
+                assert "ALL_FLASH = flash-M0+ flash-M4" in text
+        else:
+            cargo = (out / "Cargo.toml").read_text()
+            for crate, pin in RUST_PINS.items():
+                assert f'{crate} = "{pin}"' in cargo, f"pin {crate} missing"
+            assert 'flip-link = "0.1.12"' in cargo
+            # bug-002: no_std targets cannot unwind — both profiles must abort.
+            assert cargo.count('panic = "abort"') >= 2, "panic=abort missing from profiles"
+            memx = (out / "memory.x").read_text()
+            for region in doc["memory"]:
+                origin = int(region["origin_hex"], 16)
+                assert f"0x{origin:08X}" in memx, f"region {region['name']} origin missing"
+                assert str(region["size"]) in memx, f"region {region['name']} size missing"
+            assert "_stack_start" in memx
+            build_rs = (out / "build.rs").read_text()
+            assert "-Tlink.x" in build_rs and "rerun-if-changed" in build_rs
+            main_rs = (out / "src/main.rs").read_text()
+            assert "#[entry]" in main_rs and "wfi" in main_rs
+            # bug-025: cargo must pin the pack arch as the build target, or
+            # `mu build`/`cargo build` compile for the host and fail to link.
+            cargo_cfg = (out / ".cargo/config.toml").read_text()
+            assert f'target = "{doc["cores"][0]["arch"]}"' in cargo_cfg, (
+                "cargo build target not pinned to the pack arch"
+            )
     oc_text = (out / "probe" / "openocd.cfg").read_text()
     iface, cfg_path, dual = EXPECTED_OC[pack_id]
     assert iface in oc_text and cfg_path in oc_text, "corrected openocd path missing"

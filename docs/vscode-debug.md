@@ -157,6 +157,21 @@ docker exec mu-f411 bash -lc 'cd /project && make flash'
 
 Then attach VS Code to the container (§3) and `F5`.
 
+## 10. Rust dual-core projects (probe-rs)
+
+For `--lang rust` on a dual-core pack, `mu` generates a **probe-rs-debug**
+launch config instead of cortex-debug:
+
+- `Debug <core> (probe-rs)` per core, plus a combined all-cores config;
+- per-core `coreConfigs` (`coreIndex`, `programBinary`, `svdFile`);
+- `flashingEnabled: false`: `make flash` (OpenOCD, sibling-first + boot retry)
+  is the pre-launch task; the debug session **attaches** with probe-rs;
+- for WL55JC, `request: attach` (a released sibling cannot be reset).
+
+The Rust image has no GDB; probe-rs is already installed. Flash still uses
+OpenOCD because it carries the `bug-027` verify-and-retry tail. Extension
+recommendations are `probe-rs.probe-rs-debugger` + `rust-lang.rust-analyzer`.
+
 **Expected** (NUCLEO-F411RE + NUCLEO-H755ZI-Q verified 2026-10-14; WL55JC verified 2026-10-16):
 
 | Board | openocd picks | flash | runs |

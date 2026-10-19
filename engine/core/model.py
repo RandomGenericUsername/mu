@@ -431,6 +431,9 @@ class DeviceView:
     openocd_interface: str | None = None
     openocd_target: str | None = None
     openocd_dual_core: bool = False
+    #: True when the pack must be flashed single-core, sibling-first (a
+    #: released sibling cannot be reset; req-028 / bug-021/023/024).
+    flash_single_core: bool = False
     openocd_config_files: Tuple[str, str] | None = None
     openocd_targets: Tuple[Tuple[str, str], ...] = ()
     probe_settings: Tuple[Tuple[str, Tuple[Tuple[str, str], ...]], ...] = ()
@@ -472,6 +475,7 @@ class DeviceView:
             openocd_interface=device.openocd.interface if device.openocd else None,
             openocd_target=device.openocd.target if device.openocd else None,
             openocd_dual_core=device.openocd.dual_core if device.openocd else False,
+            flash_single_core=bool(device.facets.cpu2_boot),
             openocd_config_files=device.openocd.config_files() if device.openocd else None,
             openocd_targets=device.openocd.targets if device.openocd else (),
             probe_settings=device.facets.probe_settings if device.facets else (),
