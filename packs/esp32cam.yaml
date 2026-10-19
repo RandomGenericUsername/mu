@@ -7,6 +7,8 @@ version: "1.0.0"
 family: esp32
 stacks:
   c: idf-cmake
+  cpp: idf-cmake
+  rust: esp-idf-rust
 cores:
   - name: PRO
     arch: xtensa-lx6

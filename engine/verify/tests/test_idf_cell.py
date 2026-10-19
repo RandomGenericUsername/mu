@@ -15,11 +15,18 @@ def test_cells_include_the_esp32_language():
         for pack in ("stm32f411re", "stm32h755", "stm32wl55jc")
         for lang in ("c", "cpp", "rust")
     )
-    assert len(CELLS) == 10  # 9 STM32 + the one ESP32 language
+    assert CELLS[9:] == (("esp32cam", "c"), ("esp32cam", "cpp"), ("esp32cam", "rust"))
+    assert len(CELLS) == 12  # 9 STM32 + C/C++/Rust ESP32
 
 
 def test_idf_builder_is_registered_for_the_stack_family():
     assert build_cell_for("idf-cmake") is build_idf_cell
+
+
+def test_idf_rust_builder_is_registered():
+    from engine.verify.e2e import build_idf_rust_cell
+
+    assert build_cell_for("esp-idf-rust") is build_idf_rust_cell
 
 
 def test_app_partition_size_is_parsed_from_idf_output():

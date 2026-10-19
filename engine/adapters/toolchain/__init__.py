@@ -13,6 +13,7 @@ from engine.core.stacks import StackSpec, register_stack
 __all__ = [
     "CARGO_CORTEX",
     "CARGO_CORTEX_DUAL",
+    "ESP_IDF_RUST",
     "IDF_CMAKE",
     "MAKE_CMSIS",
     "ensure_registered",
@@ -59,7 +60,30 @@ IDF_CMAKE = StackSpec(
     env_setup=". /opt/esp/idf/export.sh",
 )
 
-_SHIPPED = (MAKE_CMSIS, CARGO_CORTEX, CARGO_CORTEX_DUAL, IDF_CMAKE)
+#: ESP-IDF Rust (esp-idf-sys/hal/svc) on Xtensa. The official esp-rs image
+#: carries Rust + espflash + the Xtensa toolchain; esp-idf-sys downloads IDF.
+ESP_IDF_RUST = StackSpec(
+    stack_id="esp-idf-rust",
+    template_family="esp-idf-rust",
+    build_argv=("cargo", "build"),
+    image=(
+        "espressif/idf-rust:esp32_1.95.0.0"
+        "@sha256:1f90203f191cc94d7da1acf4da0e0e87aac128165115c1512f30668359f09dc6"
+    ),
+    env_setup="source /home/esp/export-esp.sh",
+    flash_backend="espflash",
+    # The image's ``esp`` user cannot open a host ``uucp``-owned ttyUSB0;
+    # run as root so the forwarded serial device is accessible.
+    container_user="0",
+)
+
+_SHIPPED = (
+    MAKE_CMSIS,
+    CARGO_CORTEX,
+    CARGO_CORTEX_DUAL,
+    IDF_CMAKE,
+    ESP_IDF_RUST,
+)
 
 
 def ensure_registered() -> None:

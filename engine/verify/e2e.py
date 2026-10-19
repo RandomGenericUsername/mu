@@ -54,6 +54,7 @@ __all__ = [
     "assert_fits",
     "build_cpp_cell",
     "build_idf_cell",
+    "build_idf_rust_cell",
     "build_rust_cell",
     "build_rust_dual_cell",
     "check_memory_x",
@@ -426,6 +427,10 @@ def build_rust_dual_cell(device: Device, out: Path, image: str) -> CellResult:
 #: authoritative fit bound (no ``arm-none-eabi-size`` for an xtensa app).
 _APP_PARTITION_RE = re.compile(r"Smallest app partition is (0x[0-9A-Fa-f]+) bytes")
 
+#: ESP32-CAM app bank: 4 MiB flash minus the 0x10000 app offset (same value
+#: espflash reports: 4,128,768 B).
+_IDF_RUST_APP_AVAIL = 4 * 1024 * 1024 - 0x10000
+
 
 def build_idf_cell(device: Device, out: Path, image: str) -> CellResult:
     """Build an ESP-IDF app in its stack image (AD-15): assert the triple + fit.
@@ -489,6 +494,56 @@ def build_idf_cell(device: Device, out: Path, image: str) -> CellResult:
     return res
 
 
+def build_idf_rust_cell(device: Device, out: Path, image: str) -> CellResult:
+    """Build an ESP-IDF Rust app and check it fits the app bank (req-030)."""
+    res = CellResult(pack=device.id, lang="", image=image)
+    env = ". /home/esp/export-esp.sh"
+    proc = docker_run(image, out, ["bash", "-lc", f"{env}; cargo build"])
+    res.commands.append(f"cargo build (in {image})")
+    res.exits.append(proc.returncode)
+    combined = _combined(proc)
+    res.warnings.extend(_warnings(combined))
+    if proc.returncode != 0:
+        res.note = f"BUILD FAILED:\n{combined.strip()[-3000:]}"
+        return res
+
+    target = "xtensa-esp32-espidf"
+    elf_rel = f"target/{target}/debug/{device.id}"
+    elf = out / elf_rel
+    if not elf.is_file():
+        raise CellFailure(f"{device.id}: expected ELF {elf_rel} missing after build")
+
+    size_proc = docker_run(
+        image, out, ["bash", "-lc", f'{env}; xtensa-esp32-elf-size -B "{elf_rel}"']
+    )
+    res.commands.append(f"xtensa-esp32-elf-size -B {elf_rel}")
+    res.exits.append(size_proc.returncode)
+    if size_proc.returncode != 0:
+        raise CellFailure(
+            f"{device.id}: size failed: {_combined(size_proc).strip()[-500:]}"
+        )
+    text, data, bss = parse_size_output(_combined(size_proc))
+    used = text + data
+    if used > _IDF_RUST_APP_AVAIL:
+        raise CellFailure(
+            f"{device.id}: app overflow: {used} > {_IDF_RUST_APP_AVAIL} (app bank)"
+        )
+    res.elfs.append(
+        ElfInfo(
+            path=elf_rel,
+            text=text,
+            data=data,
+            bss=bss,
+            flash_used=used,
+            flash_avail=_IDF_RUST_APP_AVAIL,
+            flash_region="app",
+        )
+    )
+    res.note = f"app {used} B / {_IDF_RUST_APP_AVAIL} B app bank"
+    res.ok = True
+    return res
+
+
 # AD-15: the shipped stacks register their builders — the harness owns the build
 # mechanics, core owns the registry. A third build system registers here (or in
 # its own module) and never edits ``run_all``.
@@ -496,6 +551,7 @@ register_build_cell("c-cmsis", build_cpp_cell)
 register_build_cell("rust-cortex", build_rust_cell)
 register_build_cell("rust-cortex-dual", build_rust_dual_cell)
 register_build_cell("idf-cmake", build_idf_cell)
+register_build_cell("esp-idf-rust", build_idf_rust_cell)
 
 
 def _envelope(res: CellResult, stack_id: str, template_family: str) -> BuildEvidence:

@@ -106,6 +106,30 @@ docker run --rm --device-cgroup-rule 'c 189:* rmw' -v /dev/bus/usb:/dev/bus/usb 
 # probe-rs chip info STM32F411RE -> one core; `probe-rs run --chip STM32F411RE --probe …` flashes/runs.
 ```
 
+## ESP32-CAM (req-030)
+
+Rust (ESP-IDF, `esp-idf-rust` stack) — GPIO0→GND + RESET for download mode,
+then release GPIO0 + RESET to run:
+
+```sh
+mu create --mcu-config esp32cam --lang rust --name esp32-rust --path /tmp/opencode/esp32 --vscode
+mu build --project-dir /tmp/opencode/esp32/esp32-rust
+mu flash --lang rust --mcu-config esp32cam --project-dir /tmp/opencode/esp32/esp32-rust \
+  --files target/xtensa-esp32-espidf/debug/esp32cam --device /dev/ttyUSB0
+# → Flashing has completed! / flash verdict: 1/1 OK
+# serial 115200 → I (...) esp32cam: esp32cam: blink 9..14
+```
+
+C++ (`idf-cmake`) — same GPIO0 ritual:
+
+```sh
+mu flash --lang cpp --mcu-config esp32cam --project-dir /tmp/opencode/esp32/esp32-cpp \
+  --files build/bootloader/bootloader.bin build/partition_table/partition-table.bin \
+          build/esp32cam.bin --device /dev/ttyUSB0
+# → 3/3 OK (bootloader + partition table + app), all hash-verified
+# serial 115200 → esp32cam: blink 10..16
+```
+
 ## Scope note
 
 **F411RE single-core Rust is now live-proven** (req-029): the generated Rust

@@ -29,6 +29,11 @@ docker inspect ghcr.io/randomgenericusername/lang-rust:1.99.0    --format='{{.Re
 Record the resulting digests here after each build (base-image updates change
 them; re-record, do not silently float).
 
+ESP-IDF (req-030, external pinned images):
+- C/C++: `espressif/idf:v6.1 @ sha256:81893c71bb5e570088901f21def8684c25cd2a9020281bd01b843a7655edb18c`
+- Rust: `espressif/idf-rust:esp32_1.95.0.0 @ sha256:1f90203f191cc94d7da1acf4da0e0e87aac128165115c1512f30668359f09dc6`
+  (Rust 1.95 nightly, espflash 4.4.0, Xtensa GCC; `esp-idf-sys` downloads IDF v6.1)
+
 Built digests (2026-10-09, `FROM --platform=linux/amd64`, Docker 29.8.2):
 - cpp: `randomgenericusername/lang-cpp:15.3.rel2 @ sha256:27d29e05159fc71ddb6a2218de653ad401786cd81163cfcba86948642fa3a50d` (2.02GB, amd64).
 - rust: `randomgenericusername/lang-rust:1.99.0 @ sha256:49e8cc060999644690541da88b20af3b5ad21c62d91d02da9af604348e0f0e2d` (amd64). Smoke: rustc 1.99.0 (b940084d7), probe-rs 0.32.0, thumbv7em (both) + thumbv6m targets, OpenOCD c8d973bda.

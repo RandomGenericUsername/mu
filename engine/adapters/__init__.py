@@ -148,6 +148,10 @@ def _ensure_builtin_backends() -> None:
         from engine.adapters.esptool import EsptoolAdapter
 
         _BACKEND_FACTORIES["esptool"] = EsptoolAdapter
+    if "espflash" not in _BACKEND_FACTORIES:
+        from engine.adapters.espflash import EspflashAdapter
+
+        _BACKEND_FACTORIES["espflash"] = EspflashAdapter
 
 
 def get_adapter(name: str | None = None, **kwargs) -> FlashPort:

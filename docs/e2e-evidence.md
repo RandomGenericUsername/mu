@@ -1,4 +1,4 @@
-# E2E build evidence (req-009) — 10/10 cells green
+# E2E build evidence (req-009) — 12/12 cells green
 
 Rendered trees compile in the pinned images with zero host deps.
 C/C++ cells inject harness-owned vendor stubs (see module docstring);
@@ -173,3 +173,36 @@ warnings are recorded per cell and never fail (warn-only policy).
     CMake Warning at /opt/esp/idf/tools/cmake/component_validation.cmake:106 (message):
     CMake Warning at /opt/esp/idf/tools/cmake/component_validation.cmake:106 (message):
     CMake Warning at /opt/esp/idf/tools/cmake/component_validation.cmake:106 (message):
+
+## esp32cam / cpp — PASS
+
+- image: `espressif/idf:v6.1@sha256:81893c71bb5e570088901f21def8684c25cd2a9020281bd01b843a7655edb18c`
+- stack: `idf-cmake` (template family `idf-cmake`)
+- build evidence: `stack=idf-cmake; template_family=idf-cmake; commands=idf.py build (in espressif/idf:v6.1@sha256:81893c71bb5e570088901f21def8684c25cd2a9020281bd01b843a7655edb18c); exits=0; artifacts=build/bootloader/bootloader.bin=26176,build/partition_table/partition-table.bin=3072,build/esp32cam.bin=149136; fits=factory=149136/1048576`
+- cmd `idf.py build (in espressif/idf:v6.1@sha256:81893c71bb5e570088901f21def8684c25cd2a9020281bd01b843a7655edb18c)` -> exit 0
+- note: app 149136 B / 1048576 B factory partition; triple: bootloader.bin, partition-table.bin, esp32cam.bin
+- `build/bootloader/bootloader.bin`: 26176 bytes (host stat, informational)
+- `build/partition_table/partition-table.bin`: 3072 bytes (host stat, informational)
+- `build/esp32cam.bin`: text=149136 data=0 bss=0
+  - flash: used 149136 / avail 1048576 (factory)
+  - ram: used 0 / avail 0 ()
+- warnings:
+    CMake Warning at /opt/esp/idf/tools/cmake/component_validation.cmake:106 (message):
+    CMake Warning at /opt/esp/idf/tools/cmake/component_validation.cmake:106 (message):
+    CMake Warning at /opt/esp/idf/tools/cmake/component_validation.cmake:106 (message):
+    CMake Warning at /opt/esp/idf/tools/cmake/component_validation.cmake:106 (message):
+    CMake Warning at /opt/esp/idf/tools/cmake/component_validation.cmake:106 (message):
+
+## esp32cam / rust — PASS
+
+- image: `espressif/idf-rust:esp32_1.95.0.0@sha256:1f90203f191cc94d7da1acf4da0e0e87aac128165115c1512f30668359f09dc6`
+- stack: `esp-idf-rust` (template family `esp-idf-rust`)
+- build evidence: `stack=esp-idf-rust; template_family=esp-idf-rust; commands=cargo build (in espressif/idf-rust:esp32_1.95.0.0@sha256:1f90203f191cc94d7da1acf4da0e0e87aac128165115c1512f30668359f09dc6) | xtensa-esp32-elf-size -B target/xtensa-esp32-espidf/debug/esp32cam; exits=0,0; artifacts=; fits=app=541253/4128768`
+- cmd `cargo build (in espressif/idf-rust:esp32_1.95.0.0@sha256:1f90203f191cc94d7da1acf4da0e0e87aac128165115c1512f30668359f09dc6)` -> exit 0
+- cmd `xtensa-esp32-elf-size -B target/xtensa-esp32-espidf/debug/esp32cam` -> exit 0
+- note: app 541253 B / 4128768 B app bank
+- `target/xtensa-esp32-espidf/debug/esp32cam`: text=354235 data=187018 bss=2739
+  - flash: used 541253 / avail 4128768 (app)
+  - ram: used 0 / avail 0 ()
+- warnings:
+    (none)
