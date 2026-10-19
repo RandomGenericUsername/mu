@@ -17,5 +17,5 @@
 - [x] 2.3 `EspflashAdapter` + per-stack `flash_backend`; CLI resolves it.
       Verify: argv/parse tests.
 - [x] 2.4 e2e `idf-rust` builder + pack cell. Verify: `pytest`, e2e.
-- [ ] 2.5 Live Rust flash/run via `mu`/`espflash`. Verify: serial log.
+- [x] 2.5 Live Rust flash/run via `mu`/`espflash`. Verify: serial log.
 - [x] 2.6 Docs/evidence; `make test` + `openspec validate`; merge.

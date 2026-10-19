@@ -2,7 +2,7 @@
 id: req-030
 title: "ESP32-CAM ESP-IDF C++ parity + Rust stack"
 kind: requirement
-status: in-progress
+status: done
 size: L
 lane: openspec-single
 links:
@@ -53,6 +53,5 @@ Spike-009 (`tickets/spike-009-esp32-idf-rust-cpp/`):
 - `mu build` on generated ESP32 C++ and Rust projects → success.
 - Backend argv: Rust → `espflash flash --port … --chip esp32 …`; C/C++ →
   `esptool … write-flash …`.
-- Rust live flash/run was proven in spike-009 (`esp32rust: blink 15..20`);
-  the generated `mu` project flash/run is pending the GPIO0 download-mode
-  ritual on the attached CAM.
+- Live through `mu`: Rust `1/1 OK` → `esp32cam: blink 9..14`; C++
+  `3/3 OK` → `esp32cam: blink 10..16` (115200).
