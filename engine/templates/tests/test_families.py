@@ -123,3 +123,33 @@ def test_cpp_and_rust_share_the_plan(tmp_path: Path) -> None:
             assert f"0x{core.ram.origin:08X}" in memx
             assert str(core.flash.size) in memx
             assert str(core.ram.size) in memx
+
+
+def test_f411_rust_single_core_layout(tmp_path: Path) -> None:
+    device = _device("stm32f411re")
+    render(device, "rust", tmp_path)
+    assert (tmp_path / "src/main.rs").is_file()
+    assert (tmp_path / "Cargo.toml").is_file()
+    assert not (tmp_path / "Makefile").exists()
+    main = (tmp_path / "src/main.rs").read_text()
+    assert "delay_half_period" in main
+    assert "0x40020000" in main and "0x40023830" in main  # GPIOA / RCC
+    assert "wfi" not in main
+    cargo = (tmp_path / "Cargo.toml").read_text()
+    assert 'opt-level = "s"' in cargo
+    assert 'flip-link = "0.1.12"' not in cargo
+    cfg = (tmp_path / ".cargo/config.toml").read_text()
+    assert 'linker = "flip-link"' in cfg
+
+
+def test_f411_vscode_uses_probe_rs(tmp_path: Path) -> None:
+    device = _device("stm32f411re")
+    render(device, "rust", tmp_path, vscode=True)
+    launch = json.loads((tmp_path / ".vscode/launch.json").read_text())
+    config = launch["configurations"][0]
+    assert config["type"] == "probe-rs-debug"
+    assert config["flashingConfig"]["flashingEnabled"] is True
+    assert config["coreConfigs"][0]["coreIndex"] == 0
+    assert config["coreConfigs"][0]["svdFile"].endswith("STM32F411.svd")
+    ext = json.loads((tmp_path / ".vscode/extensions.json").read_text())
+    assert "probe-rs.probe-rs-debugger" in ext["recommendations"]

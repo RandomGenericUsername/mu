@@ -35,5 +35,5 @@ class _LegacyFamily:
 
 
 _LEGACY = _LegacyFamily()
-for _family_id in ("c-cmsis", "rust-cortex", "idf-cmake"):
+for _family_id in ("c-cmsis", "idf-cmake"):
     register_template_family(_family_id, _LEGACY)

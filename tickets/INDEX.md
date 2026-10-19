@@ -39,12 +39,13 @@
   - [task-005-probe-default-proof-precheck](./task-005-probe-default-proof-precheck/ticket.md) — Pack-default probe, proof wiring, image pre-check | `done`
   - [task-006-backend-settings](./task-006-backend-settings/ticket.md) — Per-backend pack settings (probe chip strings etc.) | `done`
 
-- [epic-002-post-v1](./epic-002-post-v1/epic.md) — Post-V1 roadmap | `proposed` | 3/5 children done | done-when: every post-V1 track shipped or declined | exec: BMAD advisory
+- [epic-002-post-v1](./epic-002-post-v1/epic.md) — Post-V1 roadmap | `proposed` | 4/6 children done | done-when: every post-V1 track shipped or declined | exec: BMAD advisory
   - [req-024-dep-integration](./req-024-dep-integration/ticket.md) — C/C++ dependency integration (Conan 2 / CPM) | `proposed`
   - [req-025-windows-lane](./req-025-windows-lane/ticket.md) — Windows native lane | `proposed`
   - [req-026-wl55-cm0p-bringup](./req-026-wl55-cm0p-bringup/ticket.md) — WL55JC CM0+ dual-core bring-up | `done`
   - [req-027-cubeclt-verdict](./req-027-cubeclt-verdict/ticket.md) — STM32CubeCLT verdict | `done`
   - [req-028-rust-dual-core](./req-028-rust-dual-core/ticket.md) — Rust dual-core parity: plan-driven template families | `done` | openspec: req-028-rust-dual-core
+  - [req-029-f411-rust-parity](./req-029-f411-rust-parity/ticket.md) — F411RE Rust single-core parity: LED, probe-rs debug, live proof | `done` | 401 tests; PA5 live proof + probe-rs debug
 
 ## Requirements
 

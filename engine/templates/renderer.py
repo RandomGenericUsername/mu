@@ -1782,3 +1782,4 @@ def _render_legacy(
 # ``emit``, so these bottom imports do not create a load-time cycle.
 from engine.templates.families import legacy as _legacy_families  # noqa: E402,F401
 from engine.templates.families import rust_cortex_dual as _rust_dual_family  # noqa: E402,F401
+from engine.templates.families import rust_cortex_single as _rust_single_family  # noqa: E402,F401

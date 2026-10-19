@@ -157,16 +157,18 @@ docker exec mu-f411 bash -lc 'cd /project && make flash'
 
 Then attach VS Code to the container (§3) and `F5`.
 
-## 10. Rust dual-core projects (probe-rs)
+## 10. Rust projects (probe-rs)
 
-For `--lang rust` on a dual-core pack, `mu` generates a **probe-rs-debug**
-launch config instead of cortex-debug:
+For `--lang rust`, `mu` generates a **probe-rs-debug** launch config instead of
+cortex-debug:
 
-- `Debug <core> (probe-rs)` per core, plus a combined all-cores config;
-- per-core `coreConfigs` (`coreIndex`, `programBinary`, `svdFile`);
-- `flashingEnabled: false`: `make flash` (OpenOCD, sibling-first + boot retry)
-  is the pre-launch task; the debug session **attaches** with probe-rs;
-- for WL55JC, `request: attach` (a released sibling cannot be reset).
+- single-core packs: one `coreConfig`, `flashingEnabled: true`, `preLaunchTask:
+  Build` — F5 flashes, runs, and debugs;
+- dual-core packs: `Debug <core> (probe-rs)` per core, plus a combined
+  all-cores config; per-core `coreConfigs` (`coreIndex`, `programBinary`,
+  `svdFile`); `flashingEnabled: false` because `make flash` (OpenOCD,
+  sibling-first + boot retry) is the pre-launch task and the session **attaches**;
+- WL55JC uses `request: attach` (a released sibling cannot be reset).
 
 The Rust image has no GDB; probe-rs is already installed. Flash still uses
 OpenOCD because it carries the `bug-027` verify-and-retry tail. Extension

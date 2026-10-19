@@ -219,7 +219,10 @@ def test_cells(pack_id: str, lang: str, tmp_path: Path) -> None:
             cargo = (out / "Cargo.toml").read_text()
             for crate, pin in RUST_PINS.items():
                 assert f'{crate} = "{pin}"' in cargo, f"pin {crate} missing"
-            assert 'flip-link = "0.1.12"' in cargo
+            # req-029: flip-link is a linker (config), not an unused build-dep;
+            # the dev profile is -Os-like so the blink delay is calibrated.
+            assert 'flip-link = "0.1.12"' not in cargo
+            assert 'opt-level = "s"' in cargo
             # bug-002: no_std targets cannot unwind — both profiles must abort.
             assert cargo.count('panic = "abort"') >= 2, "panic=abort missing from profiles"
             memx = (out / "memory.x").read_text()
@@ -231,13 +234,17 @@ def test_cells(pack_id: str, lang: str, tmp_path: Path) -> None:
             build_rs = (out / "build.rs").read_text()
             assert "-Tlink.x" in build_rs and "rerun-if-changed" in build_rs
             main_rs = (out / "src/main.rs").read_text()
-            assert "#[entry]" in main_rs and "wfi" in main_rs
+            assert "#[entry]" in main_rs
+            # req-029: a pack with example.led blinks it instead of wfi.
+            assert "delay_half_period" in main_rs
+            assert "wfi" not in main_rs
             # bug-025: cargo must pin the pack arch as the build target, or
             # `mu build`/`cargo build` compile for the host and fail to link.
             cargo_cfg = (out / ".cargo/config.toml").read_text()
             assert f'target = "{doc["cores"][0]["arch"]}"' in cargo_cfg, (
                 "cargo build target not pinned to the pack arch"
             )
+            assert 'linker = "flip-link"' in cargo_cfg
     oc_text = (out / "probe" / "openocd.cfg").read_text()
     iface, cfg_path, dual = EXPECTED_OC[pack_id]
     assert iface in oc_text and cfg_path in oc_text, "corrected openocd path missing"
