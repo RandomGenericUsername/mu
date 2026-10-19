@@ -438,7 +438,13 @@ def core_context(device: Device, core: Core, lang: str) -> dict:
         "oc_target_line": _oc_target_line(device, core.name),
         # bug-027: the trailing reset is not reliable, so the flash recipe
         # carries the shared verify-and-retry tail for this core's flash bank.
-        "boot_check_cmds": _boot_check_cmds(device, core.name),
+        # A released sibling (cpu2_boot) cannot run until the primary releases
+        # it, so its flash target must not claim "DID NOT BOOT" (bug-032).
+        "boot_check_cmds": (
+            ""
+            if device.facets.cpu2_boot and device.cores[0].name != core.name
+            else _boot_check_cmds(device, core.name)
+        ),
         "oc_dual": bool(device.openocd and device.openocd.dual_core),
         "probe_transport": device.probe_ref.transport,
         "probe_address": device.probe_ref.address,

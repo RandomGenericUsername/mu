@@ -2,14 +2,14 @@
 id: bug-032
 title: "C++ WL55 `flash-M0+` prints a false `DID NOT BOOT` (sibling not released yet)"
 kind: bug
-status: triage
+status: in-progress
 lane: direct
 severity: S3
 links:
   openspec: none
   bmad: none
-worktree: none
-branch: none
+worktree: .worktrees/bug-032/
+branch: ticket/bug-032-cpp-sibling-boot-check
 repro: "mu create --mcu-config stm32wl55jc --lang cpp --name wl55 --path /tmp && cd /tmp/wl55/wl55 && make flash"
 observed: "flash-M0+ ends with `mu-boot: DID NOT BOOT after 10 attempts (last pc=0x1fff...)`; make continues, flash-M4 then verifies and the board runs"
 expected: "flash-M0+ prints only `** Verified OK **`; the verify-and-retry check runs on the primary (or after CPU2 is released)"
@@ -56,3 +56,22 @@ belongs to the primary (the piece whose reset decides the board state).
 
 Evidence: live 2026-10-19, NUCLEO-WL55JC (`0483:374e` serial
 `001C00374741500220383733`); `make flash` output above.
+
+## Fix implemented (2026-10-19)
+
+- `engine/templates/renderer.py` `core_context`: for a `cpu2_boot` pack, the
+  non-primary core's `boot_check_cmds` is empty; only the primary carries the
+  verify-and-retry loop.
+- `engine/templates/tests/test_bug027_boot_retry.py`: regression asserts
+  `flash-M0+` has no `mu-boot` and `flash-M4` keeps the M4 window; the
+  `make flash` / `mu flash` parity test checks only the primary for
+  `cpu2_boot` packs.
+- Generated WL55 C++ Makefile now has:
+  `flash-M0+: ... -c "program … verify reset" -c "exit"` (no boot loop) and
+  `flash-M4+: ... <mu-boot loop>`.
+
+Evidence: `uv run pytest engine -q` -> **401 passed**; rendered Makefile grep
+above. **Live re-check pending:** the WL55JC is not attached (only F411RE
+`0483:3752` is enumerated), so the original `make flash` repro cannot be
+re-run here. The regression covers the generated recipe; re-run the repro on
+the WL55 to flip this to `done`.

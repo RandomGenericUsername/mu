@@ -106,13 +106,15 @@ def test_makefile_flash_target_appends_boot_check(tmp_path):
     assert re.search(r"(?<!\$)\$mu_(try|out|pc)", text) is None
 
 
-def test_makefile_per_core_targets_check_their_own_flash_bank(tmp_path):
+def test_makefile_boot_check_only_on_the_primary_for_cpu2_boot(tmp_path):
+    """bug-032: the sibling is in reset until the primary releases it, so its
+    flash target must not run the verify-and-retry check."""
     text = _makefile("stm32wl55jc", tmp_path)
     m4 = re.search(r"^flash-M4:.*\n\t.*$", text, re.MULTILINE)
     m0 = re.search(r"^flash-M0\+:.*\n\t.*$", text, re.MULTILINE)
     assert m4 and m0
     assert "0x8000000 && $$mu_pc < 0x8020000" in m4.group()
-    assert "0x8020000 && $$mu_pc < 0x8040000" in m0.group()
+    assert "mu-boot" not in m0.group()
 
 
 def test_makefile_boot_check_follows_the_program_step(tmp_path):
@@ -131,15 +133,24 @@ def test_both_flash_sites_emit_the_same_boot_check_commands(tmp_path):
     """`make flash` and `mu flash` must not drift: same commands, same window.
 
     The Makefile doubles `$` for make and single-quotes for the shell; undoing
-    that must reproduce the adapter's `-c` payloads byte for byte.
+    that must reproduce the adapter's `-c` payloads byte for byte. For a
+    cpu2_boot pack only the primary (last piece) is checked (bug-032).
     """
     for pack in ("stm32f411re", "stm32h755", "stm32wl55jc"):
+        device = load_file(PACKS / f"{pack}.yaml")
         text = _makefile(pack, tmp_path)
         payloads = re.findall(r"-c '([^']*)'", text)
-        for pack_core in {c.name for c in load_file(PACKS / f"{pack}.yaml").cores}:
-            expected = boot_check_commands(
-                load_file(PACKS / f"{pack}.yaml").memory, pack_core
-            )
-            rendered = [p.replace("$$", "$") for p in payloads]
+        rendered = [p.replace("$$", "$") for p in payloads]
+        checked = (
+            [device.cores[0].name]
+            if device.facets.cpu2_boot
+            else [c.name for c in device.cores]
+        )
+        for pack_core in checked:
+            expected = boot_check_commands(device.memory, pack_core)
             assert expected[0] in rendered, f"{pack}/{pack_core}: loop drifted"
             assert expected[1] in rendered, f"{pack}/{pack_core}: verdict drifted"
+        if device.facets.cpu2_boot:
+            sibling = device.cores[1].name
+            expected = boot_check_commands(device.memory, sibling)
+            assert expected[0] not in rendered, f"{pack}/{sibling}: sibling checked"
