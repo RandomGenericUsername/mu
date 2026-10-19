@@ -36,12 +36,12 @@ warnings are recorded per cell and never fail (warn-only policy).
 
 - image: `ghcr.io/randomgenericusername/lang-rust:1.99.0`
 - stack: `cargo-cortex` (template family `rust-cortex`)
-- build evidence: `stack=cargo-cortex; template_family=rust-cortex; commands=cargo build --target thumbv7em-none-eabihf (in ghcr.io/randomgenericusername/lang-rust:1.99.0); exits=0; artifacts=target/thumbv7em-none-eabihf/debug/stm32f411re=825608; fits=`
+- build evidence: `stack=cargo-cortex; template_family=rust-cortex; commands=cargo build --target thumbv7em-none-eabihf (in ghcr.io/randomgenericusername/lang-rust:1.99.0); exits=0; artifacts=target/thumbv7em-none-eabihf/debug/stm32f411re=814328; fits=`
 - cmd `cargo build --target thumbv7em-none-eabihf (in ghcr.io/randomgenericusername/lang-rust:1.99.0)` -> exit 0
 - note: FLASH: origin=0x08000000 length=524288 matches pack; RAM: origin=0x20000000 length=131072 matches pack
-- `target/thumbv7em-none-eabihf/debug/stm32f411re`: 825608 bytes (host stat, informational)
+- `target/thumbv7em-none-eabihf/debug/stm32f411re`: 814328 bytes (host stat, informational)
 - warnings:
-    warning: stm32f411re v0.1.0 (/work) ignoring invalid dependency `flip-link` which is missing a lib target
+    (none)
 
 ## stm32h755 / c — PASS
 

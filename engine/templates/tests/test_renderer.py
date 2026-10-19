@@ -185,7 +185,10 @@ def test_render_emits_no_openocd_or_cmsis_artifacts_without_the_facts(tmp_path) 
         version="1.0.0",
         source_hash="sha256:bare",
         cores=[Core(name="C0", arch="generic")],
-        memory=[MemoryRegion(name="flash", origin_hex="0x0", size=4096)],
+        memory=[
+            MemoryRegion(name="flash", origin_hex="0x0", size=4096),
+            MemoryRegion(name="ram", origin_hex="0x20000000", size=1024),
+        ],
         probe_ref=Endpoint(transport="t", address="a"),
         proof_rung="rung",
         stacks=(("rust", "cargo-cortex"),),
@@ -232,9 +235,9 @@ def test_renderer_readme_rust_has_no_make_targets(tmp_path) -> None:
     text = (tmp_path / "README.md").read_text()
     assert "mu build --project-dir ." in text
     assert "make flash" not in text                   # cargo path, not make
-    # bug-025: the Rust example is a `wfi` loop — the README must not claim an
-    # LED blink it does not implement.
-    assert "on-board LED" not in text
+    # req-029: the single-core Rust example now blinks the pack LED, so the
+    # README may (and must) say so.
+    assert "on-board LED" in text
 
 
 def test_render_vscode_generates_valid_configs(tmp_path) -> None:

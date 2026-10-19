@@ -8,7 +8,8 @@ fallback (`spec:69`).
 
 | Pack (board) | Probe | OpenOCD target | Flash | Run proof | Recorded |
 | --- | --- | --- | --- | --- | --- |
-| `stm32f411re` (NUCLEO-F411RE) | `0483:3752` | `stlink.cfg` + `board/st_nucleo_f4.cfg` | `Verified OK` | LD2 (PA5) toggles ~1 Hz; PC in `delay_half_period` | 2026-10-14 |
+| `stm32f411re` (NUCLEO-F411RE), C/C++ | `0483:3752` | `stlink.cfg` + `board/st_nucleo_f4.cfg` | `Verified OK` | LD2 (PA5) toggles ~1 Hz; PC in `delay_half_period` | 2026-10-14 |
+| `stm32f411re` (NUCLEO-F411RE), Rust (req-029) | `0483:3752` | `stlink.cfg` + `board/st_nucleo_f4.cfg` | `Verified OK` | `GPIOA_ODR` bit 5 (PA5/LD2) toggles `0x20 ↔ 0x0`; probe-rs flashes/runs the ELF | 2026-10-19 |
 | `stm32h755` (NUCLEO-H755ZI-Q), C/C++ | `0483:3754` | `stlink-dap.cfg` + `board/st_nucleo_h745zi.cfg` (+ `DUAL_CORE`) | `Verified OK` ×2 (both banks) | M7 LD2 toggles; M4 `counter` increments | 2026-10-14 |
 | `stm32h755` (NUCLEO-H755ZI-Q), Rust dual (ops-041) | `0483:3754` | `stlink-dap.cfg` + `board/st_nucleo_h745zi.cfg` (`connect_assert_srst`) | `Verified OK` ×2 (M7 then M4) | M7 `GPIOE_ODR` toggles `0x2 ↔ 0x0`; M4 `pc=0x08100474`, `COUNTER=0x2E3`; probe-rs cores `cm7`/`cm4` | 2026-10-19 |
 | `stm32wl55jc` (NUCLEO-WL55JC), C/C++ | `0483:374e` | `stlink-dap.cfg` + `target/stm32wlx.cfg` | `Verified OK` ×2 (M0+ then M4) | M4 LD1 (PB15) toggles; `GPIOB_ODR` bit 15 flips | 2026-10-16 |
@@ -90,14 +91,29 @@ openocd -f interface/stlink-dap.cfg -f probe/probe-serial.cfg \
 # → pc 0x08100474; COUNTER 0x000002e3
 ```
 
+F411RE Rust (req-029) reproduction — single-core, probe-rs debug config:
+
+```sh
+mu create --mcu-config stm32f411re --lang rust --name f411-rust --path /tmp/opencode/f411 --vscode
+mu build --project-dir /tmp/opencode/f411/f411-rust
+# flash via OpenOCD (proven) or probe-rs:
+docker run --rm --device-cgroup-rule 'c 189:* rmw' -v /dev/bus/usb:/dev/bus/usb \
+  -v "$PWD":/work -w /work -e MU_PROBE_SERIAL=0672FF515250898367070638 \
+  ghcr.io/randomgenericusername/lang-rust:1.99.0 bash -lc \
+  'openocd -f interface/stlink.cfg -f probe/probe-serial.cfg -f board/st_nucleo_f4.cfg \
+     -c "program target/thumbv7em-none-eabihf/debug/stm32f411re verify reset" -c exit'
+# → ** Verified OK **; GPIOA_ODR (0x40020014) samples: 0x00000000 / 0x00000020 / 0x00000000
+# probe-rs chip info STM32F411RE -> one core; `probe-rs run --chip STM32F411RE --probe …` flashes/runs.
+```
+
 ## Scope note
 
-**Single-core Rust remains build-parity only** (`spike-008` decision, option c):
-the generated single-core example is a bare `wfi` loop with no observable proof.
-The **dual-core Rust** path (req-028) is flash/run proven on WL55JC: both images
-verify, the M4 blinks PB15, the M0+ counter advances, and CPU2 is released by
-the M4's `__pre_init` (`PWR_CR4=0x8000`). F411RE/H755 Rust live proof is **not**
-claimed. The build half of every cell is in `docs/e2e-evidence.md` (10/10).
+**F411RE single-core Rust is now live-proven** (req-029): the generated Rust
+project blinks PA5 (`GPIOA_ODR` bit 5 toggles). The **dual-core Rust** path
+(req-028) is flash/run proven on WL55JC and H755: both images verify, the
+primary LED blinks, the sibling counter advances, and WL55 CPU2 is released by
+the M4's `__pre_init` (`PWR_CR4=0x8000`). ESP32CAM has no Rust stack. The build
+half of every cell is in `docs/e2e-evidence.md` (10/10).
 
 ## Sources
 
