@@ -76,3 +76,7 @@ selection by serial. Full walkthrough, expected behaviour, and troubleshooting:
 Active development toward V1 (create → build → flash → run per matrix cell).
 `make test` green is the merge gate; every technical claim in planning
 artifacts carries evidence per `AGENTS.md`.
+
+Rust dual-core (WL55JC/H755) is at C++ parity for **bare-metal bring-up**
+(per-core images, CPU2 release, LED/counter, flash/debug); single-core Rust
+remains build-to-ELF parity. See `tickets/req-028-rust-dual-core/`.

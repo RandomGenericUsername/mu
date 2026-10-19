@@ -44,6 +44,12 @@ def test_ports_image_lookup_maps_stacks():
     lookup = DefaultImageLookup()
     assert lookup.image_for("make-cmsis")
     assert lookup.image_for("cargo-cortex")
-    assert set(lookup.supported_stacks()) == {"make-cmsis", "cargo-cortex", "idf-cmake"}
+    assert lookup.image_for("cargo-cortex-dual")
+    assert set(lookup.supported_stacks()) == {
+        "make-cmsis",
+        "cargo-cortex",
+        "cargo-cortex-dual",
+        "idf-cmake",
+    }
     with pytest.raises(ValueError):
         lookup.image_for("nope")

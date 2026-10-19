@@ -17,8 +17,10 @@ from string import Template
 
 from engine.core.model import Core, Device
 from engine.core.bootcheck import boot_check_commands
+from engine.core.plan import build_plan
 from engine.core.stacks import stack_spec
 from engine.adapters.toolchain import ensure_registered as _ensure_stacks
+from engine.templates.families import RenderOptions, family_for
 from engine.templates.vendoring import VendorError, vendor
 
 __all__ = [
@@ -31,10 +33,14 @@ __all__ = [
 
 SUPPORTED_LANGS = ("c", "cpp", "rust")
 
-#: Template families this renderer implements (AD-11): a stack whose family is
-#: not here is a recognised stack awaiting its template slice (e.g. ESP32's
-#: ``idf-cmake`` until E3), not a broken pack.
-SUPPORTED_TEMPLATE_FAMILIES = ("c-cmsis", "rust-cortex")
+#: Shipped template families (AD-11). The registry is the runtime source of
+#: truth; this tuple is for capability discovery/tests.
+SUPPORTED_TEMPLATE_FAMILIES = (
+    "c-cmsis",
+    "rust-cortex",
+    "rust-cortex-dual",
+    "idf-cmake",
+)
 
 # Core name -> gcc -mcpu value (renderer-owned map, no template fork).
 CPU_BY_CORE = {
@@ -539,8 +545,9 @@ def _sibling_debug_section(device: Device) -> str:
         "# sourced BEFORE the target config (it reads DUAL_CORE while creating the\n"
         "# second core). ATTACH ONLY -- no reset: a system reset cannot halt the\n"
         "# released sibling (bug-024). Nothing here writes the boot bit: the\n"
-        "# primary's mu_release_sibling constructor already released the sibling\n"
-        "# (bug-031). `targets` selects the sibling (the generic halt/reg/resume\n"
+        "# primary's release code (`mu_release_sibling` in C/C++, `__pre_init`\n"
+        "# in Rust) already released the sibling (bug-031). `targets` selects the\n"
+        "# sibling (the generic halt/reg/resume\n"
         "# otherwise act on the first target) and `poll` puts it in a known state\n"
         "# before halting. It resumes again on the way out, so this check leaves\n"
         f"# the board running; drop `resume`/`exit` to gdb {elf} instead.\n"
@@ -1549,7 +1556,33 @@ def _vscode_files_idf(device: Device) -> dict[str, str]:
 def render(
     pack_model: Device, lang: str, out_dir: str | Path, *, vscode: bool = False
 ) -> list[Path]:
-    """Render a project tree; return the list of files written (sorted)."""
+    """Render a project tree through the registered template family (req-028).
+
+    The plan is derived once from the device; the family is selected by the
+    resolved stack. No per-language branch lives here.
+    """
+    if lang not in SUPPORTED_LANGS:
+        raise ValueError(f"unsupported lang {lang!r}; expected one of {SUPPORTED_LANGS}")
+    stack_id = pack_model.stack_for(lang)
+    if stack_id is None:
+        declared = [declared_lang for declared_lang, _ in pack_model.stacks]
+        raise ValueError(
+            f"pack {pack_model.id!r} declares no build stack for language {lang!r} "
+            f"(declared: {declared or 'none'})"
+        )
+    _ensure_stacks()
+    stack = stack_spec(stack_id)
+    plan = build_plan(pack_model)
+    family = family_for(stack.template_family)
+    return family.emit(
+        pack_model, plan, Path(out_dir), RenderOptions(lang=lang, vscode=vscode)
+    )
+
+
+def _render_legacy(
+    pack_model: Device, lang: str, out_dir: str | Path, *, vscode: bool = False
+) -> list[Path]:
+    """Legacy family body, temporarily retained behind the family port."""
     if lang not in SUPPORTED_LANGS:
         raise ValueError(f"unsupported lang {lang!r}; expected one of {SUPPORTED_LANGS}")
     # AD-11: the pack declares which build stack this language uses; the
@@ -1719,3 +1752,9 @@ def render(
         )
 
     return sorted(written)
+
+
+# Register the shipped families. Legacy modules import this module only inside
+# ``emit``, so these bottom imports do not create a load-time cycle.
+from engine.templates.families import legacy as _legacy_families  # noqa: E402,F401
+from engine.templates.families import rust_cortex_dual as _rust_dual_family  # noqa: E402,F401

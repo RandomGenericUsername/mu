@@ -42,6 +42,7 @@ from engine.core.build_cells import (
 )
 from engine.core.loader import load_file
 from engine.core.model import Device, MemoryRegion
+from engine.core.plan import build_plan
 from engine.core.stacks import stack_spec
 from engine.templates.renderer import core_context, render
 
@@ -54,6 +55,7 @@ __all__ = [
     "build_cpp_cell",
     "build_idf_cell",
     "build_rust_cell",
+    "build_rust_dual_cell",
     "check_memory_x",
     "docker_run",
     "inject_vendor_stubs",
@@ -249,6 +251,34 @@ def parse_memory_x(text: str) -> dict[str, tuple[int, int]]:
     return regions
 
 
+def check_core_memory_x(device: Device, core: str, memx_text: str) -> list[str]:
+    """A dual-core Rust ``memory.x`` carries only that core's FLASH/RAM."""
+    got = parse_memory_x(memx_text)
+    flash = pick_region(device.memory, core, "flash")
+    ram = pick_region(device.memory, core, "ram")
+    expected = {
+        "FLASH": (flash.origin, flash.size),
+        "RAM": (ram.origin, ram.size),
+    }
+    report = []
+    for name, values in expected.items():
+        if name not in got:
+            raise CellFailure(f"{device.id}/{core}: memory.x missing {name}")
+        if got[name] != values:
+            raise CellFailure(
+                f"{device.id}/{core}: memory.x {name} mismatch: got "
+                f"origin=0x{got[name][0]:08X} length={got[name][1]}, pack has "
+                f"origin=0x{values[0]:08X} length={values[1]}"
+            )
+        report.append(f"{core}/{name}: origin=0x{values[0]:08X} length={values[1]}")
+    extra = set(got) - set(expected)
+    if extra:
+        raise CellFailure(
+            f"{device.id}/{core}: memory.x carries foreign regions {sorted(extra)}"
+        )
+    return report
+
+
 def check_memory_x(device: Device, memx_text: str) -> list[str]:
     """Every pack region SHALL appear in memory.x with identical origin/length;
     extra entries (FLASH/RAM aliases) SHALL duplicate a pack region's values."""
@@ -356,6 +386,42 @@ def build_rust_cell(device: Device, out: Path, image: str) -> CellResult:
     return res
 
 
+def build_rust_dual_cell(device: Device, out: Path, image: str) -> CellResult:
+    """Build every core package via the generated Makefile (req-028)."""
+    res = CellResult(pack=device.id, lang="", image=image)
+    proc = docker_run(image, out, ["make", "build"])
+    res.commands.append(f"make build (in {image})")
+    res.exits.append(proc.returncode)
+    combined = _combined(proc)
+    res.warnings.extend(_warnings(combined))
+    if proc.returncode != 0:
+        res.note = f"BUILD FAILED:\n{combined.strip()[-3000:]}"
+        return res
+
+    reports: list[str] = []
+    for core in build_plan(device).cores:
+        elf_rel = f"build/{core.name}/{device.id}-{core.name}.elf"
+        elf = out / elf_rel
+        if not elf.is_file():
+            raise CellFailure(f"{device.id}/{core.name}: expected ELF {elf_rel} missing")
+        size_proc = docker_run(image, out, ["size", "-B", elf_rel])
+        res.commands.append(f"size -B {elf_rel}")
+        res.exits.append(size_proc.returncode)
+        if size_proc.returncode != 0:
+            raise CellFailure(
+                f"{device.id}/{core.name}: size failed: "
+                f"{_combined(size_proc).strip()[-500:]}"
+            )
+        text, data, bss = parse_size_output(_combined(size_proc))
+        res.elfs.append(assert_fits(device, core.name, text, data, bss))
+        reports += check_core_memory_x(
+            device, core.name, (out / core.slug / "memory.x").read_text()
+        )
+    res.note = "; ".join(reports)
+    res.ok = True
+    return res
+
+
 #: IDF reports the factory partition size in its build output; that is the
 #: authoritative fit bound (no ``arm-none-eabi-size`` for an xtensa app).
 _APP_PARTITION_RE = re.compile(r"Smallest app partition is (0x[0-9A-Fa-f]+) bytes")
@@ -428,6 +494,7 @@ def build_idf_cell(device: Device, out: Path, image: str) -> CellResult:
 # its own module) and never edits ``run_all``.
 register_build_cell("c-cmsis", build_cpp_cell)
 register_build_cell("rust-cortex", build_rust_cell)
+register_build_cell("rust-cortex-dual", build_rust_dual_cell)
 register_build_cell("idf-cmake", build_idf_cell)
 
 

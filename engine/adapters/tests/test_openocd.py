@@ -250,3 +250,21 @@ def test_proof_dual_session_vectors_fill_per_core_pieces():
         "verified": "2/2",
         "sessions": "core0,core1",
     }
+
+
+def test_cpu2_boot_pack_flashes_single_core_sibling_first():
+    """req-028: a released sibling cannot be reset; program both pieces
+    through cpu0, without DUAL_CORE/per-core targets, and check the primary."""
+    view = DeviceView.of(load_file(PACKS / "stm32wl55jc.yaml"))
+    assert view.flash_single_core is True
+    adapter = OpenOCDAdapter(runner=_fake_runner(""))
+    argv = adapter.render_argv(
+        view, _endpoint(), ["build/M0+/x.elf", "build/M4/y.elf"]
+    )
+    joined = " ".join(argv)
+    assert "targets" not in argv, "no per-core target selection for cpu2_boot"
+    assert "program build/M0+/x.elf verify reset" in argv
+    assert "program build/M4/y.elf verify reset" in argv
+    # The primary owns the release/boot state; check its window (not cpu1's).
+    assert "$mu_pc >= 0x8000000 && $mu_pc < 0x8020000" in joined
+    assert "stm32wlx.cpu1" not in joined
