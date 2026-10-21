@@ -63,8 +63,9 @@ def expected_files(pack_id: str, lang: str) -> list[str]:
     base = ["Makefile" if lang in ("c", "cpp") else "Cargo.toml"]
     if lang in ("c", "cpp"):
         files = list(base)
+        main_ext = "cpp" if lang == "cpp" else "c"
         for core in doc["cores"]:
-            files.append(f"src/main-{core['name']}.c")
+            files.append(f"src/main-{core['name']}.{main_ext}")
             files.append(f"linker/{linker[core['name']]}")
         files.append("Startup/NOTE.md")
     elif doc.get("stacks", {}).get("rust") == "cargo-cortex-dual":
@@ -133,7 +134,7 @@ def test_cells(pack_id: str, lang: str, tmp_path: Path) -> None:
             assert f"clean-{core['name']}" in text, "clean target missing"
             assert f"flash-{core['name']}" in text, "flash-helper target missing"
             assert f"OUT_{core['name']} = build/{core['name']}/" in text, "artifact dir missing"
-            main = (out / f"src/main-{core['name']}.c").read_text()
+            main = (out / f"src/main-{core['name']}.{'cpp' if lang == 'cpp' else 'c'}").read_text()
             assert header in main, "config header include missing"
             if "example" in doc.get("blocks", {}) and index == 0:
                 assert (

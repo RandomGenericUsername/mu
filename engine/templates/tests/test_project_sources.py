@@ -197,3 +197,154 @@ def test_readme_documents_source_layout_and_hook(tmp_path) -> None:
     assert "EXTRA_SRCS_<core>" in readme
     assert "-include" in readme
     assert "$(CC)" in readme and "$(CXX)" in readme
+
+
+# --- req-032: per-core library flags and C++ entry point ---
+
+
+def test_cpp_lang_renders_cpp_main_compiled_and_linked_with_cxx(tmp_path) -> None:
+    """`--lang cpp` emits src/main-<core>.cpp; SRCS and the .cpp rule use it."""
+    _render("stm32f411re", "cpp", tmp_path)
+    assert (tmp_path / "src/main-M4.cpp").is_file()
+    assert not (tmp_path / "src/main-M4.c").exists()
+
+    db = _make_db(tmp_path)
+    _stub_vendor_inputs(tmp_path, db, "M4")
+    assert "build/M4/src/main-M4.o" in _var(db, "OBJS_M4").split()
+    assert "src/main-M4.cpp" in (tmp_path / "Makefile").read_text()
+
+    done = subprocess.run(
+        ["make", "-n", "build-M4"], cwd=tmp_path, capture_output=True, text=True
+    )
+    assert done.returncode == 0, done.stderr
+    commands = done.stdout.splitlines()
+    main = next(c for c in commands if "-o build/M4/src/main-M4.o" in c)
+    link = next(c for c in commands if "-o build/M4/stm32f411re-M4.elf" in c)
+    assert main.startswith("arm-none-eabi-g++ "), main
+    assert "-std=c++17" in main
+    assert link.startswith("arm-none-eabi-g++ "), link
+
+
+def test_c_lang_keeps_c_main_compiled_and_linked_with_cc(tmp_path) -> None:
+    """`--lang c` keeps the byte-shape: src/main-<core>.c via $(CC)."""
+    _render("stm32f411re", "c", tmp_path)
+    assert (tmp_path / "src/main-M4.c").is_file()
+    assert not (tmp_path / "src/main-M4.cpp").exists()
+
+    db = _make_db(tmp_path)
+    _stub_vendor_inputs(tmp_path, db, "M4")
+    done = subprocess.run(
+        ["make", "-n", "build-M4"], cwd=tmp_path, capture_output=True, text=True
+    )
+    assert done.returncode == 0, done.stderr
+    commands = done.stdout.splitlines()
+    main = next(c for c in commands if "-o build/M4/src/main-M4.o" in c)
+    link = next(c for c in commands if "-o build/M4/stm32f411re-M4.elf" in c)
+    assert main.startswith("arm-none-eabi-gcc "), main
+    assert " -std=c++17" not in main
+    assert link.startswith("arm-none-eabi-gcc "), link
+
+
+def test_extra_inc_and_suffix_flags_from_config_sources(tmp_path) -> None:
+    """EXTRA_INC reaches C and C++; EXTRA_CFLAGS only .c, EXTRA_CXXFLAGS only .cpp."""
+    _render("stm32f411re", "c", tmp_path)
+    _write(tmp_path / "src/M4/a.c", "int a(void) { return 1; }\n")
+    _write(tmp_path / "src/M4/b.cpp", 'extern "C" int b(void) { return 2; }\n')
+    _write(
+        tmp_path / "config/sources.mk",
+        "EXTRA_INC_M4 = -Ithird_party/lib/include\n"
+        "EXTRA_CFLAGS_M4 = -DEXTRA_C_ONLY\n"
+        "EXTRA_CXXFLAGS_M4 = -DEXTRA_CXX_ONLY\n",
+    )
+    db = _make_db(tmp_path)
+    _stub_vendor_inputs(tmp_path, db, "M4")
+
+    done = subprocess.run(
+        ["make", "-n", "build-M4"], cwd=tmp_path, capture_output=True, text=True
+    )
+    assert done.returncode == 0, done.stderr
+    commands = done.stdout.splitlines()
+    c_cmd = next(c for c in commands if "-o build/M4/src/M4/a.o" in c)
+    cpp_cmd = next(c for c in commands if "-o build/M4/src/M4/b.o" in c)
+    link = next(c for c in commands if "-o build/M4/stm32f411re-M4.elf" in c)
+
+    # EXTRA_INC is shared, after the base flags.
+    assert "-Ithird_party/lib/include" in c_cmd
+    assert "-Ithird_party/lib/include" in cpp_cmd
+    assert c_cmd.index("-Wall") < c_cmd.index("-Ithird_party/lib/include")
+    assert cpp_cmd.index("-Wall") < cpp_cmd.index("-Ithird_party/lib/include")
+
+    # Suffix-specific flags never cross over.
+    assert "-DEXTRA_C_ONLY" in c_cmd
+    assert "-DEXTRA_C_ONLY" not in cpp_cmd
+    assert "-DEXTRA_CXX_ONLY" in cpp_cmd
+    assert "-DEXTRA_CXX_ONLY" not in c_cmd
+
+    # Link carries common flags (include path), not compile-only C flags.
+    assert "-Ithird_party/lib/include" in link
+    assert "-DEXTRA_C_ONLY" not in link
+    assert "-DEXTRA_CXX_ONLY" not in link
+
+
+def test_extra_hook_is_a_noop_without_config_sources(tmp_path) -> None:
+    """No config/sources.mk: the extra variables expand empty, no stray flags."""
+    _render("stm32f411re", "c", tmp_path)
+    assert not (tmp_path / "config/sources.mk").exists()
+    makefile = (tmp_path / "Makefile").read_text()
+    for var in ("EXTRA_INC_M4 ?=", "EXTRA_CFLAGS_M4 ?=", "EXTRA_CXXFLAGS_M4 ?="):
+        assert var in makefile
+
+    db = _make_db(tmp_path)
+    _stub_vendor_inputs(tmp_path, db, "M4")
+    done = subprocess.run(
+        ["make", "-n", "build-M4"], cwd=tmp_path, capture_output=True, text=True
+    )
+    assert done.returncode == 0, done.stderr
+    assert "EXTRA_" not in done.stdout
+
+
+def test_h755_m7_links_with_cc_and_m4_with_cxx(tmp_path) -> None:
+    """A .cpp library source on M4 alone switches only M4's link driver to CXX."""
+    _render("stm32h755", "c", tmp_path)
+    _write(
+        tmp_path / "third_party/lib/src/isr.cpp",
+        'extern "C" int lib_isr(void) { return 3; }\n',
+    )
+    _write(
+        tmp_path / "config/sources.mk",
+        "EXTRA_SRCS_M4 = third_party/lib/src/isr.cpp\n"
+        "EXTRA_INC_M4 = -Ithird_party/lib/include\n",
+    )
+    db = _make_db(tmp_path)
+    _stub_vendor_inputs(tmp_path, db, "M7")
+    _stub_vendor_inputs(tmp_path, db, "M4")
+
+    # The library source lands only in M4's object list.
+    assert "build/M4/third_party/lib/src/isr.o" in _var(db, "OBJS_M4").split()
+    assert "third_party" not in _var(db, "OBJS_M7")
+
+    for core, driver in (("M7", "arm-none-eabi-gcc"), ("M4", "arm-none-eabi-g++")):
+        done = subprocess.run(
+            ["make", "-n", f"build-{core}"], cwd=tmp_path, capture_output=True, text=True
+        )
+        assert done.returncode == 0, done.stderr
+        link = next(
+            c for c in done.stdout.splitlines()
+            if f"-o build/{core}/stm32h755-{core}.elf" in c
+        )
+        assert link.startswith(f"{driver} "), (core, link)
+
+
+def test_readme_documents_extra_inc_and_cpp_main(tmp_path) -> None:
+    _render("stm32wl55jc", "cpp", tmp_path)
+    readme = (tmp_path / "README.md").read_text()
+    assert "EXTRA_INC_<core>" in readme
+    assert "EXTRA_CFLAGS_<core>" in readme
+    assert "EXTRA_CXXFLAGS_<core>" in readme
+    assert "src/main-<core>.cpp" in readme
+    assert "$(CXX)" in readme
+
+    _render("stm32wl55jc", "c", tmp_path / "c")
+    c_readme = (tmp_path / "c/README.md").read_text()
+    assert "src/main-<core>.c" in c_readme
+

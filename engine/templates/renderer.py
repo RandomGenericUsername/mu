@@ -431,6 +431,9 @@ def core_context(device: Device, core: Core, lang: str) -> dict:
         "lib_upper": re.sub(r"\W", "_", facets.config_library).upper(),
         # Stack compiler: link fallback for a core with no C++ sources.
         "compiler": "$(CXX)" if lang == "cpp" else "$(CC)",
+        # req-032: the generated entry point follows the stack language, so a
+        # cpp project gets src/main-<core>.cpp (compiled/linked as C++).
+        "main_ext": "cpp" if lang == "cpp" else "c",
         # C++ flags are separate from CFLAGS_<core> so .c sources always
         # compile with $(CC) even on the cpp stack (req-031).
         "cxx_flags": " -std=c++17 -fno-exceptions -fno-rtti",
@@ -474,7 +477,10 @@ _MAKEFILE_HEAD = Template(
     "CONFIG_DEF = -DUSE_$config_guard\n"
     "\n"
     "# Project-owned extra/library sources (optional; never generated).\n"
-    "#   EXTRA_SRCS_<core> = third_party/lib/src/isr.cpp\n"
+    "#   EXTRA_SRCS_<core>     = third_party/lib/src/isr.cpp\n"
+    "#   EXTRA_INC_<core>      = -Ithird_party/lib/include\n"
+    "#   EXTRA_CFLAGS_<core>   = -DLIB_C_ONLY\n"
+    "#   EXTRA_CXXFLAGS_<core> = -DLIB_CPP_ONLY\n"
     "# Included with -include so a project without the file still builds.\n"
     "-include config/sources.mk\n"
     "\n"
@@ -491,18 +497,27 @@ _MAKEFILE_CORE = Template(
     "OUT_$core = build/$core/$$(TARGET_$core)\n"
     "CPU_FLAGS_$core = $cpu_flags\n"
     "FPU_FLAGS_$core = $fpu_flags\n"
-    "CFLAGS_$core = $$(CPU_FLAGS_$core) $$(FPU_FLAGS_$core) $define_flags "
-    "$$(CMSIS_INC) $$(CONFIG_INC) $$(CONFIG_DEF) -Os -ffunction-sections -fdata-sections -g3 -Wall\n"
-    "CXXFLAGS_$core = $$(CFLAGS_$core)$cxx_flags\n"
+    "EXTRA_SRCS_$core ?=\n"
+    "# req-032: library include paths and per-suffix flags come from\n"
+    "# config/sources.mk and are appended after the base flags. EXTRA_INC is\n"
+    "# shared by C and C++ (it flows through CFLAGS); the suffix-specific\n"
+    "# variables apply only to their compile rule.\n"
+    "EXTRA_INC_$core ?=\n"
+    "EXTRA_CFLAGS_$core ?=\n"
+    "EXTRA_CXXFLAGS_$core ?=\n"
+    "COMMON_FLAGS_$core = $$(CPU_FLAGS_$core) $$(FPU_FLAGS_$core) $define_flags "
+    "$$(CMSIS_INC) $$(CONFIG_INC) $$(CONFIG_DEF) -Os -ffunction-sections -fdata-sections -g3 -Wall "
+    "$$(EXTRA_INC_$core)\n"
+    "CFLAGS_$core = $$(COMMON_FLAGS_$core) $$(EXTRA_CFLAGS_$core)\n"
+    "CXXFLAGS_$core = $$(COMMON_FLAGS_$core)$cxx_flags $$(EXTRA_CXXFLAGS_$core)\n"
     "LDSCRIPT_$core = linker/$linker_script\n"
     "STARTUP_$core = $startup_s\n"
     "SYSTEM_C_$core = $system_c\n"
-    "EXTRA_SRCS_$core ?=\n"
     "# Per-core discovery: the generated main file, this core's src/<core>/ tree,\n"
     "# the shared src/common/ tree, then project/library sources from\n"
     "# config/sources.mk. Deliberately no global src/* glob: dual-core packs must\n"
     "# never leak one core's sources into its sibling.\n"
-    "SRCS_$core = src/main-$core.c \\\n"
+    "SRCS_$core = src/main-$core.$main_ext \\\n"
     "            $$(call rwildcard,src/$core/,*.c) \\\n"
     "            $$(call rwildcard,src/$core/,*.cpp) \\\n"
     "            $$(call rwildcard,src/common/,*.c) \\\n"
@@ -539,7 +554,7 @@ _MAKEFILE_CORE = Template(
     "# Final artifacts land under build/$core/ — nothing generated at the root.\n"
     "$$(OUT_$core).elf: $$(OBJS_$core) $$(LDSCRIPT_$core)\n"
     "\t@mkdir -p $$(@D)\n"
-    "\t$$(LINK_$core) $$(CFLAGS_$core) -T$$(LDSCRIPT_$core) -Wl,--gc-sections "
+    "\t$$(LINK_$core) $$(COMMON_FLAGS_$core) -T$$(LDSCRIPT_$core) -Wl,--gc-sections "
     "-Wl,-Map=$$(@:.elf=.map) --specs=nano.specs -o $$@ $$(OBJS_$core)\n"
     "\n"
     "$$(OUT_$core).hex: $$(OUT_$core).elf\n"
@@ -748,8 +763,9 @@ _STARTUP_NOTE = Template(
     "## Reset flow\n"
     "\n"
     "`Reset_Handler` (startup) -> `SystemInit` (CMSIS system file) -> `main()`\n"
-    "(`src/main-<CORE>.c`). The linker script (`linker/`) places `.isr_vector`\n"
-    "at the flash origin via `ENTRY(Reset_Handler)`.\n"
+    "(`src/main-<CORE>.c`, or `.cpp` on a C++ stack). The linker script\n"
+    "(`linker/`) places `.isr_vector` at the flash origin via\n"
+    "`ENTRY(Reset_Handler)`.\n"
 )
 
 _CONFIG_H = Template(
@@ -798,7 +814,7 @@ _OVERRIDES = Template(
     "- C/C++: `-Iconfig` comes FIRST on the command line (before any vendor\n"
     "  include dir), so `#include \"$config_header\"` resolves here.\n"
     "  `-DUSE_$config_guard` selects this pack's config (the Makefile sets\n"
-    "  both; `src/main-*.c` fails fast without the `-D`).\n"
+    "  both; `src/main-*` fails fast without the `-D`).\n"
     "- Rust: `build.rs` re-tracks `config/$config_header`\n"
     "  (`cargo:rerun-if-changed`) and declares `cfg($rust_cfg)` for\n"
     "  project-level selection; set it via `RUSTFLAGS=\"--cfg $rust_cfg\"`\n"
@@ -1016,6 +1032,8 @@ which is attach-only for this pack.
         sibling_section = ""
 
     if lang in ("c", "cpp"):
+        main_ext = "cpp" if lang == "cpp" else "c"
+        main_compiler = "$(CXX)" if lang == "cpp" else "$(CC)"
         targets = "\n".join(
             [f"| Build | `make build` |", f"| Clean | `make clean` |", f"| Flash | `make flash` |"]
             + [f"| Flash {c.name} | `make flash-{c.name}` |" for c in device.cores]
@@ -1029,24 +1047,35 @@ The generated Makefile discovers sources per core — no Makefile edit is needed
 | --- | --- |
 | `src/<core>/**/*.c`, `src/<core>/**/*.cpp` | that core only |
 | `src/common/**/*.c`, `src/common/**/*.cpp` | every core |
-| `src/main-<core>.c` | that core (generated entry point) |
+| `src/main-<core>.{main_ext}` | that core (generated entry point) |
 
+This is a `{lang}` project, so the generated entry point is
+`src/main-<core>.{main_ext}` and it is compiled with `{main_compiler}`.
 `.c` files compile with `$(CC)` and `.cpp` files with `$(CXX)`; a core that
 contains a `.cpp` source is linked with `$(CXX)`. Sources never cross cores: a
 file under `src/M4/` is not compiled into the M0+ (or M7) image.
 
 For sources outside `src/` — a library ISR, for example — create the
 project-owned `config/sources.mk`. `mu create` never writes or overwrites this
-file (it is picked up with `-include`, so it is optional):
+file (it is picked up with `-include`, so it is optional). It also carries
+per-core include paths and flags, applied after the base flags:
 
 ```make
 # config/sources.mk
-EXTRA_SRCS_M4 = third_party/stm32-hw/src/drivers/adc_irq_wl55.cpp
+EXTRA_SRCS_M4     = third_party/stm32-hw/src/drivers/adc_irq_wl55.cpp
+EXTRA_INC_M4      = -Ithird_party/stm32-hw/include
+EXTRA_CFLAGS_M4   = -DLIB_C_ONLY
+EXTRA_CXXFLAGS_M4 = -DLIB_CPP_ONLY
 ```
 
-Use the core's exact name in the variable (`EXTRA_SRCS_<core>`), and repeat the
-line for each core that needs the source. Objects land under `build/<core>/`,
-mirroring the source path.
+- `EXTRA_SRCS_<core>` adds library source files for that core.
+- `EXTRA_INC_<core>` adds include paths (`-I...`) to **both** C and C++ compiles.
+- `EXTRA_CFLAGS_<core>` adds flags to `.c` compiles only.
+- `EXTRA_CXXFLAGS_<core>` adds flags to `.cpp` compiles only.
+
+Use the core's exact name in each variable (`EXTRA_SRCS_<core>`, ...), and
+repeat the lines for each core that needs them. Objects land under
+`build/<core>/`, mirroring the source path.
 
 ## Build and flash
 
@@ -1768,7 +1797,9 @@ def _render_legacy(
         write(f"config/{cfg['config_header']}", _CONFIG_H.substitute(cfg))
 
     if stack.template_family == "c-cmsis":
-        ext = "c"  # cpp shares the c template set; flag delta lives in context
+        # req-032: cpp stacks get a C++ entry point; the same extension is used
+        # by SRCS_<core>, so the .cpp rule compiles and links it with $(CXX).
+        ext = "cpp" if lang == "cpp" else "c"
         sections: list[str] = []
         rows: list[str] = []
         for core in pack_model.cores:  # dual-core via iteration, no fork
