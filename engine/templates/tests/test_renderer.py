@@ -271,7 +271,19 @@ def test_render_vscode_generates_valid_configs(tmp_path) -> None:
     ext = json.loads((tmp_path / ".vscode/extensions.json").read_text())
     assert "marus25.cortex-debug" in ext["recommendations"]
     tasks = json.loads((tmp_path / ".vscode/tasks.json").read_text())
-    assert {"Build", "Clean", "Flash"} <= {t["label"] for t in tasks["tasks"]}
+    assert {"Build", "Compile DB", "Clean", "Flash"} <= {
+        t["label"] for t in tasks["tasks"]
+    }
+    settings = json.loads((tmp_path / ".vscode/settings.json").read_text())
+    assert (
+        settings["C_Cpp.default.compileCommands"]
+        == "${workspaceFolder}/compile_commands.json"
+    )
+    assert settings["C_Cpp.default.intelliSenseMode"] == "gcc-arm"
+    assert (tmp_path / "tools/gen_compile_commands.py").is_file()
+    makefile = (tmp_path / "Makefile").read_text()
+    assert "compdb:" in makefile and "COMPDB=1" in makefile
+    assert "compile_commands.json" in (tmp_path / ".gitignore").read_text()
 
 
 def test_render_vscode_per_core_dual(tmp_path) -> None:
