@@ -53,27 +53,38 @@ Rust/ESP-IDF templates; hardware/driver code.
   The generated README names `src/<core>/`, `src/common/`, and
   `config/sources.mk`; otherwise users fall back to editing the Makefile.
 
+- **D8 — Render the source roots.**
+  `mu create` creates `src/<core>/` and `src/common/` so the documented
+  drop-in paths exist immediately. The directories stay empty until the user
+  adds sources (git does not track them).
+
 ## Makefile shape
 
 ```make
 -include config/sources.mk
 
+# recursive wildcard (GNU make's ** is one segment)
+rwildcard = $(foreach d,$(wildcard $(1)*),$(call rwildcard,$(d)/,$(2))\
+             $(filter $(subst *,%,$(2)),$(d)))
+
 # per core:
 EXTRA_SRCS_$core ?=
 SRCS_$core = src/main-$core.c \
-             $(wildcard src/common/*.c src/common/*.cpp \
-                        src/$core/*.c src/$core/*.cpp) \
+             $(call rwildcard,src/$core/,*.c) \
+             $(call rwildcard,src/$core/,*.cpp) \
+             $(call rwildcard,src/common/,*.c) \
+             $(call rwildcard,src/common/,*.cpp) \
              $(EXTRA_SRCS_$core)
-OBJS_$core = $(patsubst src/%.c,build/$core/%.o, \
-             $(patsubst src/%.cpp,build/$core/%.o, \
-             $(patsubst %.c,build/$core/%.o, \
-             $(patsubst %.cpp,build/$core/%.o,$(SRCS_$core))))) \
-             build/$core/startup-$core.o build/$core/system-$core.o
+OBJS_$core := $(patsubst %.cpp,build/$core/%.o, \
+              $(patsubst %.c,build/$core/%.o,$(SRCS_$core))) \
+              build/$core/startup-$core.o build/$core/system-$core.o
+LINK_$core = $(if $(filter %.cpp,$(SRCS_$core)),$(CXX),<stack compiler>)
 ```
 
-The exact `patsubst` expression may be simplified during implementation; the
-required behavior is: every source maps to exactly one object under
-`build/<core>/`, including library sources outside `src/`.
+Objects mirror the full source path under `build/<core>/` (for example
+`src/M4/a.c` → `build/M4/src/M4/a.o`, `lib/extra.c` →
+`build/M4/lib/extra.o`), so every source maps to exactly one object, including
+library sources outside `src/`.
 
 ## Risks / Trade-offs
 
