@@ -7,21 +7,21 @@
 
 ## 2. Renderer
 
-- [ ] 2.1 Add `EXTRA_INC_<core>`, `EXTRA_CFLAGS_<core>`,
+- [x] 2.1 Add `EXTRA_INC_<core>`, `EXTRA_CFLAGS_<core>`,
       `EXTRA_CXXFLAGS_<core>` to `_MAKEFILE_CORE`; apply after base flags.
       Verify: `make -n build-M4` shows `EXTRA_INC`.
-- [ ] 2.2 Render `src/main-<core>.cpp` for `--lang cpp`, `.c` for `--lang c`;
+- [x] 2.2 Render `src/main-<core>.cpp` for `--lang cpp`, `.c` for `--lang c`;
       use the same extension in `SRCS_<core>` and the compile rule.
       Verify: render and inspect the Makefile/source tree.
-- [ ] 2.3 Update `_readme` with `EXTRA_INC` and the C++ main behavior.
+- [x] 2.3 Update `_readme` with `EXTRA_INC` and the C++ main behavior.
       Verify: rendered README contains both.
 
 ## 3. Tests
 
-- [ ] 3.1 Renderer unit tests: cpp main path, C main path, extra flags
+- [x] 3.1 Renderer unit tests: cpp main path, C main path, extra flags
       placement, link driver, no-op without config.
-      Verify: `uv run pytest engine/templates/tests/test_renderer.py -q`.
-- [ ] 3.2 Three-pack real-library matrix:
+      Verify: `uv run pytest engine/templates/tests/test_project_sources.py -q`.
+- [x] 3.2 Three-pack real-library matrix:
       - F411RE cpp, H755 c, WL55 cpp;
       - add `stm32-hw` at tag `adc-driver-isr`;
       - `EXTRA_SRCS_<core>` = family ISR, `EXTRA_INC_<core>` = library include;
@@ -29,9 +29,12 @@
       - build and assert strong `ADC_IRQHandler`, vector, link drivers,
         isolation.
       Exact recipe: ticket `## Three-board test recipe`.
-- [ ] 3.3 Regression: existing C projects, `uv run pytest engine -q`.
+- [x] 3.3 Regression: existing C projects, `uv run pytest engine -q`.
 
 ## 4. Close
 
 - [ ] 4.1 Update README/INDEX, tick acceptance, merge the ticket branch, close.
       Verify: `openspec validate` + merge commit.
+      Status: acceptance ticked and verification recorded on the branch; merge
+      to `main` intentionally not performed by the implementation agent (the
+      handoff rule is "never work on main").

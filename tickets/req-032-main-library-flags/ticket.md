@@ -100,25 +100,25 @@ C++ entry point:
 
 ## Acceptance
 
-- [ ] `EXTRA_INC_<core>`, `EXTRA_CFLAGS_<core>`, `EXTRA_CXXFLAGS_<core>` are
+- [x] `EXTRA_INC_<core>`, `EXTRA_CFLAGS_<core>`, `EXTRA_CXXFLAGS_<core>` are
       honoured from `config/sources.mk` after the base flags.
       `Verify: make -n build-M4` shows `-Ithird_party/stm32-hw/include`.
-- [ ] `--lang cpp` emits `src/main-<core>.cpp`; the main compiles with
+- [x] `--lang cpp` emits `src/main-<core>.cpp`; the main compiles with
       `$(CXX)`, links with `$(CXX)`, and can use C++ code.
       `Verify: render a cpp project; inspect Makefile/SRCS; build`.
-- [ ] `--lang c` keeps `src/main-<core>.c` and `$(CC)`.
+- [x] `--lang c` keeps `src/main-<core>.c` and `$(CC)`.
       `Verify: render an F411RE c project; build`.
-- [ ] A WL55 cpp project builds with the real `stm32-hw` library:
+- [x] A WL55 cpp project builds with the real `stm32-hw` library:
       `EXTRA_SRCS_M4` = ADC ISR, `EXTRA_INC_M4` = library include; strong
       `ADC_IRQHandler`; vector `0x88` points at it.
       `Verify: `arm-none-eabi-nm` + `objdump -s -j .isr_vector``.
-- [ ] F411RE cpp and H755 c builds with the library headers/ISR compile and
+- [x] F411RE cpp and H755 c builds with the library headers/ISR compile and
       the correct link driver; M7 (no `.cpp`) stays `$(CC)`, M4 (`.cpp`) uses
       `$(CXX)`; no cross-core leak.
-- [ ] Three-pack matrix is green: F411RE, H755, WL55JC.
-- [ ] `uv run pytest engine -q` and
+- [x] Three-pack matrix is green: F411RE, H755, WL55JC.
+- [x] `uv run pytest engine -q` and
       `uv run openspec validate req-032-main-library-flags` pass.
-- [ ] Generated README documents `EXTRA_INC_<core>` and the C++ main behavior.
+- [x] Generated README documents `EXTRA_INC_<core>` and the C++ main behavior.
 
 ## Three-board test recipe
 
@@ -204,6 +204,73 @@ arm-none-eabi-nm /tmp/req032/h755/build/M4/*.elf | grep ADC_IRQHandler
 Expected: all three build; the C++ mains compile with `$(CXX)`; the library
 ISR is strong in the vector; `EXTRA_INC` is present in the compile command;
 H755 M7 links with `$(CC)` and M4 with `$(CXX)`; no cross-core leak.
+
+## Verification (2026-10-21)
+
+Implementation on `ticket/req-032-main-library-flags` (worktree
+`.worktrees/req-032/`). Generated projects were rendered from this branch into
+`/tmp/req032`; only project-owned sources and `config/sources.mk` were edited —
+no generated Makefile was hand-edited.
+
+- Unit/regression: `uv run pytest engine -q` → **421 passed**.
+- Spec: `uv run openspec validate req-032-main-library-flags` → `Change
+  'req-032-main-library-flags' is valid`.
+- Renderer tests: `uv run pytest
+  engine/templates/tests/test_project_sources.py -q` → **11 passed** (cpp/C
+  main path and compile/link driver, EXTRA_INC shared, suffix flags isolated,
+  link common flags, no-config no-op, H755 M7=CC/M4=CXX, README).
+- Three-pack matrix, exact ticket recipe in `/tmp/req032`:
+  - `uv run mu create --name f411 --mcu-config stm32f411re --lang cpp …`
+    → `src/main-M4.cpp`.
+  - `uv run mu create --name h755 --mcu-config stm32h755 --lang c …`
+    → `src/main-M7.c`, `src/main-M4.c`.
+  - `uv run mu create --name wl55 --mcu-config stm32wl55jc --lang cpp …`
+    → `src/main-M4.cpp`, `src/main-M0+.cpp`.
+  - `git submodule add` of `/home/inumaki/Development/stm32-hw` in each
+    project, checked out at annotated tag `adc-driver-isr` → commit
+    `c3a5e1450acaeb758e2e38ac93852476d64d44e5`.
+  - `config/sources.mk` per project: `EXTRA_SRCS_M4` = family ISR,
+    `EXTRA_INC_M4 = -Ithird_party/stm32-hw/include`; `adc_check()` calls
+    `Adc1::init()` from the generated M4 main.
+  - `uv run mu build --project-dir /tmp/req032/{f411,h755,wl55}` → exit 0 for
+    all three; ELFs at `build/M4`, `build/M7`, `build/M4`, `build/M0+`.
+  - `arm-none-eabi-nm` (in `ghcr.io/randomgenericusername/lang-cpp:15.3.rel2`):
+    - WL55 M4: `080003c8 T ADC_IRQHandler`; `objdump -s -j .isr_vector` at
+      `8000080` shows `... c9030008 ...`, i.e. vector `0x88` =
+      `0x080003c9` (Thumb entry of `0x080003c8`) → PASS.
+    - F411 M4: `080003a0 T ADC_IRQHandler`.
+    - H755 M4: `081004cc T ADC_IRQHandler`.
+    - H755 M7: only `080003dc W ADC_IRQHandler` (weak startup default), no
+      strong library ISR → no cross-core leak.
+    - WL55 M0+: no strong `ADC_IRQHandler`, no `adc_check` → no cross-core
+      leak.
+  - `make -Bn build-<core>` compile/link drivers:
+    - F411 M4 main and link → `arm-none-eabi-g++`.
+    - WL55 M4 main and link → `arm-none-eabi-g++`.
+    - H755 M7 main and link → `arm-none-eabi-gcc`.
+    - H755 M4 main (C) → `arm-none-eabi-gcc`; link → `arm-none-eabi-g++`
+      because the M4 has the `.cpp` ISR.
+    - `-Ithird_party/stm32-hw/include` appears on the M4 compile/link
+      commands, after the base `-Wall`; M7 has no library include.
+- README: rendered cpp README contains `EXTRA_INC_<core>`,
+  `EXTRA_CFLAGS_<core>`, `EXTRA_CXXFLAGS_<core>` and
+  `src/main-<core>.cpp`; rendered C README names `src/main-<core>.c`.
+
+Deviations, with reasons:
+
+- `design.md` D2 sketches `CXXFLAGS = $(CFLAGS) …`, which would leak
+  `EXTRA_CFLAGS` (C-only) into C++ compiles. The implementation introduces
+  `COMMON_FLAGS_<core>` (base flags + `EXTRA_INC`) and derives
+  `CFLAGS = COMMON + EXTRA_CFLAGS` / `CXXFLAGS = COMMON + cxx + EXTRA_CXXFLAGS`,
+  so the ticket/spec rule (“suffix only”) holds. The link recipe uses
+  `COMMON_FLAGS`, so compile-only C flags are not passed to the linker.
+- The ticket names tag `adc-driver-isr` (commit `c3a5e14`). The local tag is
+  annotated (`refs/tags/adc-driver-isr` → tag object `2f5e9d9`); its commit is
+  `c3a5e14`, which is what the submodules were checked out to.
+- Acceptance is ticked and this evidence recorded on the ticket branch. The
+  branch was **not merged to `main`** and the ticket/INDEX status was left
+  `in-progress`, because this handoff forbids working on `main`; the
+  merge/close task (4.1) remains for the integrator.
 
 ## Out of scope
 
