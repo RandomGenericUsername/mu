@@ -60,6 +60,7 @@
 - [req-026-wl55-cm0p-bringup](./req-026-wl55-cm0p-bringup/ticket.md) — WL55JC CM0+ dual-core bring-up | `done` | bmad-advisory, parent epic-002 | CM0+ boots+runs (counter 0x2000C01C advances); `make debug-m0plus` attach path; bug-027 stays open
 - [req-027-cubeclt-verdict](./req-027-cubeclt-verdict/ticket.md) — STM32CubeCLT verdict | `done` | bmad-advisory, parent epic-002 | VERDICT: exclude from images, optional host tool (SLA0048 permitted-with-conditions)
 - [req-031-project-sources](./req-031-project-sources/ticket.md) — Per-core source discovery + library source hook in generated Makefiles | `done` | lane 2 (openspec-single) | 415 tests; three-pack build matrix green; openspec valid
+- [req-032-main-library-flags](./req-032-main-library-flags/ticket.md) — Library include flags + C++ main entry in generated projects | `in-progress` | lane 2 (openspec-single) | openspec: req-032-main-library-flags
 
 ## Bugs
 
