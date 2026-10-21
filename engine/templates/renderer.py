@@ -429,8 +429,11 @@ def core_context(device: Device, core: Core, lang: str) -> dict:
         "config_library": facets.config_library,
         "config_defaults_source": facets.config_defaults_source,
         "lib_upper": re.sub(r"\W", "_", facets.config_library).upper(),
+        # Stack compiler: link fallback for a core with no C++ sources.
         "compiler": "$(CXX)" if lang == "cpp" else "$(CC)",
-        "std_flags": " -std=c++17 -fno-exceptions -fno-rtti" if lang == "cpp" else "",
+        # C++ flags are separate from CFLAGS_<core> so .c sources always
+        # compile with $(CC) even on the cpp stack (req-031).
+        "cxx_flags": " -std=c++17 -fno-exceptions -fno-rtti",
         "oc_interface": device.openocd.interface if device.openocd else "stlink.cfg",
         "oc_cfg_path": _oc_cfg_path(device),
         "oc_flash_args": _oc_flash_args(device),
@@ -470,6 +473,16 @@ _MAKEFILE_HEAD = Template(
     "CONFIG_INC = -Iconfig\n"
     "CONFIG_DEF = -DUSE_$config_guard\n"
     "\n"
+    "# Project-owned extra/library sources (optional; never generated).\n"
+    "#   EXTRA_SRCS_<core> = third_party/lib/src/isr.cpp\n"
+    "# Included with -include so a project without the file still builds.\n"
+    "-include config/sources.mk\n"
+    "\n"
+    "# Recursive wildcard: src/<core>/**/*.c at any depth. GNU make's own\n"
+    "# wildcard treats ** as a single path segment, so recurse explicitly.\n"
+    "rwildcard = $$(foreach d,$$(wildcard $$(1)*),$$(call rwildcard,$$(d)/,$$(2))"
+    "$$(filter $$(subst *,%,$$(2)),$$(d)))\n"
+    "\n"
 )
 
 _MAKEFILE_CORE = Template(
@@ -478,33 +491,55 @@ _MAKEFILE_CORE = Template(
     "OUT_$core = build/$core/$$(TARGET_$core)\n"
     "CPU_FLAGS_$core = $cpu_flags\n"
     "FPU_FLAGS_$core = $fpu_flags\n"
-    "CFLAGS_$core = $$(CPU_FLAGS_$core) $$(FPU_FLAGS_$core)$std_flags $define_flags "
+    "CFLAGS_$core = $$(CPU_FLAGS_$core) $$(FPU_FLAGS_$core) $define_flags "
     "$$(CMSIS_INC) $$(CONFIG_INC) $$(CONFIG_DEF) -Os -ffunction-sections -fdata-sections -g3 -Wall\n"
+    "CXXFLAGS_$core = $$(CFLAGS_$core)$cxx_flags\n"
     "LDSCRIPT_$core = linker/$linker_script\n"
     "STARTUP_$core = $startup_s\n"
     "SYSTEM_C_$core = $system_c\n"
-    "SRCS_$core = src/main-$core.c\n"
-    "OBJS_$core = build/$core/main-$core.o build/$core/startup-$core.o build/$core/system-$core.o\n"
+    "EXTRA_SRCS_$core ?=\n"
+    "# Per-core discovery: the generated main file, this core's src/<core>/ tree,\n"
+    "# the shared src/common/ tree, then project/library sources from\n"
+    "# config/sources.mk. Deliberately no global src/* glob: dual-core packs must\n"
+    "# never leak one core's sources into its sibling.\n"
+    "SRCS_$core = src/main-$core.c \\\n"
+    "            $$(call rwildcard,src/$core/,*.c) \\\n"
+    "            $$(call rwildcard,src/$core/,*.cpp) \\\n"
+    "            $$(call rwildcard,src/common/,*.c) \\\n"
+    "            $$(call rwildcard,src/common/,*.cpp) \\\n"
+    "            $$(EXTRA_SRCS_$core)\n"
+    "# Objects mirror the full source path under build/$core/ (so src/M4/a.c ->\n"
+    "# build/<core>/src/M4/a.o, and library sources keep their own path).\n"
+    "OBJS_$core := $$(patsubst %.cpp,build/$core/%.o,$$(patsubst %.c,build/$core/%.o,"
+    "$$(SRCS_$core))) build/$core/startup-$core.o build/$core/system-$core.o\n"
     "\n"
-    "build/$core/main-$core.o: src/main-$core.c config/$config_header\n"
+    "LINK_$core = $$(if $$(filter %.cpp,$$(SRCS_$core)),$$(CXX),$compiler)\n"
+    "\n"
+    "# Project sources: .c compiles with CC, .cpp with CXX. One target pattern\n"
+    "# per suffix covers per-core, common, and extra sources outside src/.\n"
+    "build/$core/%.o: %.c config/$config_header\n"
     "\t@mkdir -p $$(@D)\n"
-    "\t$compiler $$(CFLAGS_$core) -c -o $$@ $$<\n"
+    "\t$$(CC) $$(CFLAGS_$core) -c -o $$@ $$<\n"
+    "\n"
+    "build/$core/%.o: %.cpp config/$config_header\n"
+    "\t@mkdir -p $$(@D)\n"
+    "\t$$(CXX) $$(CXXFLAGS_$core) -c -o $$@ $$<\n"
     "\n"
     "# Vendor startup assembly stays in its submodule (see Startup/NOTE.md);\n"
     "# this rule assembles it straight from vendor/ — never copied.\n"
     "build/$core/startup-$core.o: $$(STARTUP_$core)\n"
     "\t@mkdir -p $$(@D)\n"
-    "\t$compiler $$(CFLAGS_$core) -c -o $$@ $$<\n"
+    "\t$$(CC) $$(CFLAGS_$core) -c -o $$@ $$<\n"
     "\n"
     "# Vendor system file (SystemInit) compiles from its submodule likewise.\n"
     "build/$core/system-$core.o: $$(SYSTEM_C_$core)\n"
     "\t@mkdir -p $$(@D)\n"
-    "\t$compiler $$(CFLAGS_$core) -c -o $$@ $$<\n"
+    "\t$$(CC) $$(CFLAGS_$core) -c -o $$@ $$<\n"
     "\n"
     "# Final artifacts land under build/$core/ — nothing generated at the root.\n"
     "$$(OUT_$core).elf: $$(OBJS_$core) $$(LDSCRIPT_$core)\n"
     "\t@mkdir -p $$(@D)\n"
-    "\t$compiler $$(CFLAGS_$core) -T$$(LDSCRIPT_$core) -Wl,--gc-sections "
+    "\t$$(LINK_$core) $$(CFLAGS_$core) -T$$(LDSCRIPT_$core) -Wl,--gc-sections "
     "-Wl,-Map=$$(@:.elf=.map) --specs=nano.specs -o $$@ $$(OBJS_$core)\n"
     "\n"
     "$$(OUT_$core).hex: $$(OUT_$core).elf\n"
@@ -986,7 +1021,34 @@ which is attach-only for this pack.
             + [f"| Flash {c.name} | `make flash-{c.name}` |" for c in device.cores]
             + targets_extra
         )
-        body = f"""## Build and flash
+        body = f"""## Adding project sources
+
+The generated Makefile discovers sources per core — no Makefile edit is needed:
+
+| Path | Compiled into |
+| --- | --- |
+| `src/<core>/**/*.c`, `src/<core>/**/*.cpp` | that core only |
+| `src/common/**/*.c`, `src/common/**/*.cpp` | every core |
+| `src/main-<core>.c` | that core (generated entry point) |
+
+`.c` files compile with `$(CC)` and `.cpp` files with `$(CXX)`; a core that
+contains a `.cpp` source is linked with `$(CXX)`. Sources never cross cores: a
+file under `src/M4/` is not compiled into the M0+ (or M7) image.
+
+For sources outside `src/` — a library ISR, for example — create the
+project-owned `config/sources.mk`. `mu create` never writes or overwrites this
+file (it is picked up with `-include`, so it is optional):
+
+```make
+# config/sources.mk
+EXTRA_SRCS_M4 = third_party/stm32-hw/src/drivers/adc_irq_wl55.cpp
+```
+
+Use the core's exact name in the variable (`EXTRA_SRCS_<core>`), and repeat the
+line for each core that needs the source. Objects land under `build/<core>/`,
+mirroring the source path.
+
+## Build and flash
 
 In the dev container (this is what the VS Code tasks run):
 
@@ -1714,6 +1776,9 @@ def _render_legacy(
             sections.append(_MAKEFILE_CORE.substitute(ctx))
             rows.append(f"- `{core.name}`: `{ctx['startup_s']}`")
             write(f"src/main-{core.name}.{ext}", _MAIN_C.substitute(ctx))
+            # req-031: the documented source roots exist from the start, so a
+            # user can drop src/<core>/foo.cpp or src/common/foo.c straight in.
+            (out / "src" / core.name).mkdir(parents=True, exist_ok=True)
             flash_region = _core_region(pack_model, core.name, "flash", pack_model.memory[0].name.upper())
             ram_region = _core_region(pack_model, core.name, "ram", pack_model.memory[0].name.upper())
             write(
@@ -1727,6 +1792,7 @@ def _render_legacy(
                     ram_region=ram_region,
                 ),
             )
+        (out / "src" / "common").mkdir(parents=True, exist_ok=True)
         head_ctx = core_context(pack_model, pack_model.cores[0], lang)
         # bug-023: flash the sibling(s) BEFORE the primary. The primary's reset
         # runs the release constructor, so flashing it first would boot the
