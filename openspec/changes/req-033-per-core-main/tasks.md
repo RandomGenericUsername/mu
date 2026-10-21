@@ -36,5 +36,7 @@
 
 ## 4. Close
 
-- [ ] 4.1 Update README/INDEX, tick acceptance, merge/close.
+- [x] 4.1 Update README/INDEX, tick acceptance, merge/close.
       Verify: `openspec validate` + merge commit.
+      Status: acceptance ticked, verification recorded, and the ticket branch
+      merged to `main` with `--no-ff` on explicit user request.

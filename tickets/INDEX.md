@@ -61,7 +61,7 @@
 - [req-027-cubeclt-verdict](./req-027-cubeclt-verdict/ticket.md) — STM32CubeCLT verdict | `done` | bmad-advisory, parent epic-002 | VERDICT: exclude from images, optional host tool (SLA0048 permitted-with-conditions)
 - [req-031-project-sources](./req-031-project-sources/ticket.md) — Per-core source discovery + library source hook in generated Makefiles | `done` | lane 2 (openspec-single) | 415 tests; three-pack build matrix green; openspec valid
 - [req-032-main-library-flags](./req-032-main-library-flags/ticket.md) — Library include flags + C++ main entry in generated projects | `done` | lane 2 (openspec-single) | 421 tests; three-pack stm32-hw matrix green; openspec valid
-- [req-033-per-core-main](./req-033-per-core-main/ticket.md) — Per-core main files in generated C/C++ projects | `in-progress` | lane 2 (openspec-single) | openspec: req-033-per-core-main; 425 tests; three-pack render/build green; openspec valid; awaiting merge
+- [req-033-per-core-main](./req-033-per-core-main/ticket.md) — Per-core main files in generated C/C++ projects | `done` | lane 2 (openspec-single) | 425 tests; three-pack render/build green; openspec valid
 
 ## Bugs
 

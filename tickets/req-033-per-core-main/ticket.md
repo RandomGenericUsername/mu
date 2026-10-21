@@ -2,7 +2,7 @@
 id: req-033
 title: "Per-core main files in generated C/C++ projects"
 kind: requirement
-status: in-progress
+status: done
 size: S
 lane: openspec-single
 links:
