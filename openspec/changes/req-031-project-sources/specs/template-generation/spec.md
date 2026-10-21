@@ -2,100 +2,104 @@
 
 ## Purpose
 
-Generated C/C++ projects can add project-owned source files without editing the
-generated Makefile, and per-core builds stay isolated.
+Generated C/C++ Makefiles discover project sources per core, support library
+sources, and build the same way on single- and dual-core STM32 packs.
 
 ## ADDED Requirements
 
-### Requirement: Generated Makefiles compile per-core project sources
+### Requirement: Per-core project source discovery
 
-A generated C/C++ Makefile SHALL include an optional, project-owned
-`config/sources.mk` and SHALL compile every source listed in
-`EXTRA_SRCS_<core>` for that core.
+A generated Makefile SHALL include `src/<core>/**` and `src/common/**` sources
+in `SRCS_<core>`; it SHALL NOT use a global `src/*` glob.
 
-Evidence: `engine/templates/renderer.py:486-487` hardcodes `OBJS_$core`; the
-`wl55jc` Makefile hand-edits it (repro: `undefined app_init`).
+Evidence: `renderer.py:486-487` hardcodes only the main file.
+Verify: add `src/M4/foo.cpp`; `make -pRrq -f Makefile :` shows its object.
 
-Verify: `make -pRrq -f Makefile :` shows `build/<core>/app.o` in
-`OBJS_<core>` after adding `EXTRA_SRCS_<core> = src/app.cpp`.
+#### Scenario: core-specific source
 
-#### Scenario: C++ TU in a C-stack project
+- **WHEN** a file is added under `src/M4/`
+- **THEN** it is compiled and linked into M4 only
 
-- **WHEN** a C-stack project declares `EXTRA_SRCS_M4 = src/app.cpp` and calls
-  the C-linkage function from `src/main-M4.c`
-- **THEN** `build/M4/app.o` is built and the symbol is present in the image
+#### Scenario: common source
 
-#### Scenario: no project sources
+- **WHEN** a file is added under `src/common/`
+- **THEN** it is compiled and linked into every core
 
-- **WHEN** `config/sources.mk` is absent
-- **THEN** `OBJS_<core>` contains only `main-<core>.o`, `startup-<core>.o`, and
-  `system-<core>.o`
+#### Scenario: dual-core isolation
 
-#### Scenario: per-core isolation
+- **WHEN** `stm32h755` or `stm32wl55jc` renders
+- **THEN** `src/M4` objects never appear in the M0+/M4 sibling object list
 
-- **WHEN** a dual-core project sets `EXTRA_SRCS_M4` and `EXTRA_SRCS_M0+` to
-  different files
-- **THEN** `OBJS_M4` contains only the M4 extra object and `OBJS_M0+` only the
-  M0+ extra object
+### Requirement: Compiler and link driver follow the sources
 
-### Requirement: Sources compile with their language's compiler
+`.c` sources SHALL compile with `$(CC)`; `.cpp` sources with `$(CXX)`. A core
+containing a `.cpp` source SHALL link with `$(CXX)`; otherwise it SHALL keep the
+stack compiler.
 
-`.c` sources SHALL compile with `$(CC)` and `.cpp` sources with `$(CXX)`.
+Evidence: the `cpp` stack already links with `$(CXX)` (`renderer.py:432`).
+Verify: `make -n build-M4` on a C stack with a `.cpp` extra.
 
-Evidence: the C++ stack already compiles every source with `$(CXX)`
-(`engine/templates/renderer.py:432`); the C stack needs the suffix split only
-for project-owned sources.
+#### Scenario: C stack plus C++ user source
 
-Verify: `make -n build-M4` shows `$(CC)` for `.c` and `$(CXX)` for `.cpp`.
+- **WHEN** `src/M4/foo.cpp` is discovered on a C-stack project
+- **THEN** `foo.cpp` compiles with `$(CXX)` and the ELF links with `$(CXX)`
 
-#### Scenario: mixed sources
+### Requirement: Optional extra/library source hook
 
-- **WHEN** a core lists both `.c` and `.cpp` sources
-- **THEN** the `.c` objects are compiled with `$(CC)` and the `.cpp` objects
-  with `$(CXX)`
+`config/sources.mk` SHALL be optional and project-owned. The Makefile SHALL
+`-include` it and add `EXTRA_SRCS_<core>` to `SRCS_<core>`.
 
-### Requirement: Link driver follows the source language
+Evidence: library ISR `third_party/stm32-hw/src/drivers/adc_irq_wl55.cpp` is
+outside `src/` and must be linkable.
+Verify: `make -pRrq -f Makefile :` after defining `EXTRA_SRCS_M4`.
 
-A core SHALL link with `$(CXX)` when its source list contains a `.cpp` file;
-otherwise it SHALL keep the stack's compiler (`$(CC)` for the C stack,
-`$(CXX)` for the C++ stack).
+#### Scenario: library source
 
-Evidence: the `cpp` stack already links with `$(CXX)`
-(`engine/templates/renderer.py:432`); a C stack with a `.cpp` extra needs the
-same driver.
-
-Verify: `make -pRrq -f Makefile :` shows `LINK_<core>` expanding to `$(CXX)`
-with a `.cpp` extra and to `$(CC)` without one.
-
-#### Scenario: C stack with a C++ TU
-
-- **WHEN** `EXTRA_SRCS_M4` contains a `.cpp` file
-- **THEN** the M4 link recipe uses `$(CXX)`
-
-#### Scenario: C stack with only C sources
-
-- **WHEN** `EXTRA_SRCS_M4` is empty or contains only `.c` files
-- **THEN** the M4 link recipe uses `$(CC)`
-
-### Requirement: The source hook is durable and documented
-
-`config/sources.mk` SHALL be project-owned: the renderer SHALL NOT emit,
-overwrite, or delete it. The generated README SHALL name the file, the
-per-core `EXTRA_SRCS_<core>` variables, and the supported `src/` layout.
-
-Evidence: `mu create` regenerates the Makefile from
-`engine/templates/renderer.py`; the current consumer hand edit is lost on
-regeneration.
-
-Verify: `rg -n "config/sources.mk" <render>/README.md`; run `mu create` twice
-and confirm a pre-existing `config/sources.mk` is untouched.
+- **WHEN** `config/sources.mk` sets `EXTRA_SRCS_M4` to a library `.cpp`
+- **THEN** that object is built for M4 and linked
 
 #### Scenario: regeneration preserves the file
 
 - **WHEN** a project with `config/sources.mk` is rendered again
-- **THEN** the file still exists with its original contents
+- **THEN** the file and its contents are untouched
 
-#### Scenario: README documents the hook
+### Requirement: Existing project shape remains buildable
+
+The main entry point (`src/main-<core>.c` or `.cpp`), startup, system file and
+linker scripts SHALL keep their current names and build behavior.
+
+Evidence: current `wl55jc` and existing e2e cells depend on this shape.
+Verify: `uv run pytest engine -q`; render a project with no extra sources.
+
+#### Scenario: no extra sources
+
+- **WHEN** no per-core or common sources exist
+- **THEN** the object list still contains main, startup, and system
+
+### Requirement: Three-pack build proof
+
+The rendered projects SHALL build for `stm32f411re` (M4), `stm32h755`
+(M7+M4), and `stm32wl55jc` (M4+M0+) with a core-specific source, a common
+source, and a library source from `config/sources.mk`.
+
+Evidence: the three packs cover single-core, dual-core same-flash, and
+dual-core split-flash layouts.
+Verify: `mu create` + `mu build` for each; assert every ELF and object path.
+
+#### Scenario: WL55
+
+- **WHEN** the WL55 project adds `src/M4/extra.cpp` and `EXTRA_SRCS_M4`
+- **THEN** M4 builds with `$(CXX)` and M0+ remains unchanged
+
+### Requirement: Generated README documents the convention
+
+The generated README SHALL name `src/<core>/`, `src/common/`, and
+`config/sources.mk`.
+
+Evidence: users otherwise edit the generated Makefile, as `wl55jc` did.
+Verify: `rg -n "src/<core>|config/sources.mk" <render>/README.md`.
+
+#### Scenario: user reads the README
 
 - **WHEN** a C/C++ project is rendered
-- **THEN** `README.md` names `config/sources.mk` and `EXTRA_SRCS_<core>`
+- **THEN** the README explains how to add a source without editing the Makefile

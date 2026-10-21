@@ -2,61 +2,67 @@
 
 ## Why
 
-The generated C/C++ Makefile cannot build a project-owned translation unit.
-`engine/templates/renderer.py:486-487` defines `SRCS_$core = src/main-$core.c`
-but never uses it; `OBJS_$core` hardcodes only `main`, `startup`, and `system`.
-Any extra source is silently ignored.
+A mu-generated C/C++ project cannot add a source file without hand-editing the
+generated Makefile. The template hardcodes one application source:
 
-Consequence: an application that needs a C++ TU for a C++ library (or any
-second C file) must hand-edit the generated Makefile. The current
-`wl55jc/Makefile` does exactly that (adds `src/app.cpp`, `build/M4/app.o`, and a
-rule). `mu create` regenerates the Makefile from the template, so the edit is
-lost on the next render.
+```python
+# engine/templates/renderer.py:486-487
+"SRCS_$core = src/main-$core.c\n"
+"OBJS_$core = build/$core/main-$core.o build/$core/startup-$core.o build/$core/system-$core.o\n"
+```
 
-The vector-table half already works: ST's vendored startup declares weak IRQ
-aliases, and a strong `extern "C" void EXTI0_IRQHandler(void)` overrides them
-(the vector word at `0x08000058` points at the strong handler, not
-`Default_Handler`). The only missing piece is compiling and linking the project
-source.
+Consequences:
 
-Evidence: investigation (2026-10-20) pristine render + `src/app.cpp` ->
-`undefined reference to app_init`;
-`engine/templates/renderer.py:486-487`;
-`Vendor/.../startup_stm32wl55xx_cm4.s:154,266-267`.
-Verify: render a project, add `src/app.cpp`, call it from `main-M4.c`, build.
+- the current `wl55jc/Makefile` is hand-edited for `src/main-M4.cpp` and
+  `third_party/stm32-hw/src/drivers/adc_irq_wl55.cpp`;
+- `mu create` regenerates the file and loses those edits;
+- the reference projects used per-core source directories with wildcard
+  discovery, but mu's C/C++ template never carried that over.
+
+The fix must also cover library-owned compiled sources, which live outside the
+project's `src/` tree (example: the ADC ISR in `stm32-hw`).
+
+Evidence: `engine/templates/renderer.py:486-487`;
+`wl55jc/Makefile:27-53`; user statement about the reference convention.
+Verify: render a project, add `src/M4/foo.cpp`, run `make build-M4` — it is
+ignored/undefined today.
 
 ## What Changes
 
-- Generated C/C++ Makefiles get an opt-in, project-owned source hook:
-  - `-include config/sources.mk` (optional file, never generated/overwritten);
-  - `EXTRA_SRCS_<core>` per core, added to `SRCS_<core>`;
-  - `OBJS_<core>` derives from `SRCS_<core>` (no wildcard, no cross-core leakage);
-  - pattern rules `build/<core>/%.o: src/%.c` (`$(CC)`) and
-    `build/<core>/%.o: src/%.cpp` (`$(CXX)`);
-  - `CXXFLAGS_<core>` for C-stack projects that add a `.cpp`;
-  - link driver `$(CXX)` when the core's sources contain a `.cpp`
-    (the `cpp` stack keeps `$(CXX)`).
-- The generated README documents the hook.
-- Tests cover the hook, per-core isolation, and a real build with a `.cpp` TU.
+- Per-core project source discovery:
+  - `src/<core>/**/*.c`, `src/<core>/**/*.cpp`
+  - `src/common/**/*.c`, `src/common/**/*.cpp`
+  - plus the existing `src/main-<core>.c` / `.cpp`
+  - no global `src/*` glob (dual-core packs must not leak sources)
+- `SRCS_<core>` drives `OBJS_<core>`; pattern rules compile `.c` with `$(CC)`
+  and `.cpp` with `$(CXX)`.
+- Link with `$(CXX)` when the core's source list contains a `.cpp`; otherwise
+  keep the stack's compiler.
+- Optional project-owned `config/sources.mk` with `EXTRA_SRCS_<core>` for
+  library/unusual sources; included with `-include` and never generated.
+- Generated README documents both mechanisms.
+- Tests cover F411RE (M4), H755 (M7+M4), WL55 (M4+M0+).
 
 ## Capabilities
 
 ### Modified Capabilities
 
-- `template-generation`: generated Makefiles build per-core project-owned
-  sources from `config/sources.mk`; generated README documents it.
+- `template-generation`: generated C/C++ Makefiles discover per-core project
+  sources and optional extra/library sources.
 
 ## Impact
 
-- `engine/templates/renderer.py` (`_MAKEFILE_HEAD`, `_MAKEFILE_CORE`, `_readme`).
-- `engine/templates/tests/test_renderer.py` (new tests).
-- Generated project README output.
+- `engine/templates/renderer.py` (`_MAKEFILE_HEAD`, `_MAKEFILE_CORE`,
+  `_readme`).
+- `engine/templates/tests/test_renderer.py` and/or new tests.
+- `engine/verify/e2e.py` (three-board build cells) if the e2e harness is the
+  right place for the cross-pack proof.
+- Generated project README and Makefile.
 - No pack-schema change.
 
-**Out of scope:** the WL55 `CORE_CM0PLUS` M0+ IRQ-name define (separate
-ticket), wildcard discovery, sources outside `src/`, generating or overwriting
-`config/sources.mk`, Rust/ESP-IDF families, and regenerating the consumer
-`wl55jc` project.
+**Out of scope:** changing the `stm32-hw` library, board-specific code, moving
+generated main files into per-core directories, Rust/ESP-IDF families.
 
-Verify: `uv run pytest engine -q`; `uv run openspec validate
-req-031-project-sources`.
+Verify: `uv run pytest engine -q`;
+`mu create --mcu-config stm32f411re|stm32h755|stm32wl55jc --lang cpp …`;
+`mu build --project-dir …`; `uv run openspec validate req-031-project-sources`.
