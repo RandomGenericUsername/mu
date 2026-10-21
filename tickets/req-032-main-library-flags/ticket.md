@@ -2,7 +2,7 @@
 id: req-032
 title: "Library include flags and C++ main entry in generated projects"
 kind: requirement
-status: in-progress
+status: done
 size: M
 lane: openspec-single
 links:
@@ -268,9 +268,8 @@ Deviations, with reasons:
   annotated (`refs/tags/adc-driver-isr` → tag object `2f5e9d9`); its commit is
   `c3a5e14`, which is what the submodules were checked out to.
 - Acceptance is ticked and this evidence recorded on the ticket branch. The
-  branch was **not merged to `main`** and the ticket/INDEX status was left
-  `in-progress`, because this handoff forbids working on `main`; the
-  merge/close task (4.1) remains for the integrator.
+  branch was merged to `main` after explicit integrator approval; the merge
+  commit closes the ticket and updates `tickets/INDEX.md`.
 
 ## Out of scope
 
