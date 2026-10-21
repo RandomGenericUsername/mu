@@ -281,7 +281,7 @@ def _sibling_sections(facets: DeviceFacets) -> tuple[str, str]:
 
 
 def _main_sections(facets: DeviceFacets, primary: bool) -> tuple[str, str]:
-    """(extra includes, main body) for ``src/main-<core>.c`` (req-014/req-015).
+    """(extra includes, main body) for ``src/<core>/main.<ext>`` (req-014/req-015).
 
     A pack that declares ``example.led`` gets a self-contained blink of that
     on-board LED (raw registers + NOP half-period delay, no HAL) on the
@@ -431,8 +431,9 @@ def core_context(device: Device, core: Core, lang: str) -> dict:
         "lib_upper": re.sub(r"\W", "_", facets.config_library).upper(),
         # Stack compiler: link fallback for a core with no C++ sources.
         "compiler": "$(CXX)" if lang == "cpp" else "$(CC)",
-        # req-032: the generated entry point follows the stack language, so a
-        # cpp project gets src/main-<core>.cpp (compiled/linked as C++).
+        # req-032/req-033: the generated entry point follows the stack
+        # language and lives in the core directory, so a cpp project gets
+        # src/<core>/main.cpp (compiled/linked as C++).
         "main_ext": "cpp" if lang == "cpp" else "c",
         # C++ flags are separate from CFLAGS_<core> so .c sources always
         # compile with $(CC) even on the cpp stack (req-031).
@@ -517,9 +518,13 @@ _MAKEFILE_CORE = Template(
     "# the shared src/common/ tree, then project/library sources from\n"
     "# config/sources.mk. Deliberately no global src/* glob: dual-core packs must\n"
     "# never leak one core's sources into its sibling.\n"
-    "SRCS_$core = src/main-$core.$main_ext \\\n"
-    "            $$(call rwildcard,src/$core/,*.c) \\\n"
-    "            $$(call rwildcard,src/$core/,*.cpp) \\\n"
+    "# req-033: the entry point lives inside the core directory, so the wildcard\n"
+    "# also matches it — MAIN_<core> is listed once and filtered out of the\n"
+    "# wildcards, so `extra.cpp` next to it cannot duplicate the main object.\n"
+    "MAIN_$core = src/$core/main.$main_ext\n"
+    "SRCS_$core = $$(MAIN_$core) \\\n"
+    "            $$(filter-out $$(MAIN_$core),$$(call rwildcard,src/$core/,*.c)) \\\n"
+    "            $$(filter-out $$(MAIN_$core),$$(call rwildcard,src/$core/,*.cpp)) \\\n"
     "            $$(call rwildcard,src/common/,*.c) \\\n"
     "            $$(call rwildcard,src/common/,*.cpp) \\\n"
     "            $$(EXTRA_SRCS_$core)\n"
@@ -763,7 +768,7 @@ _STARTUP_NOTE = Template(
     "## Reset flow\n"
     "\n"
     "`Reset_Handler` (startup) -> `SystemInit` (CMSIS system file) -> `main()`\n"
-    "(`src/main-<CORE>.c`, or `.cpp` on a C++ stack). The linker script\n"
+    "(`src/<CORE>/main.c`, or `.cpp` on a C++ stack). The linker script\n"
     "(`linker/`) places `.isr_vector` at the flash origin via\n"
     "`ENTRY(Reset_Handler)`.\n"
 )
@@ -814,7 +819,7 @@ _OVERRIDES = Template(
     "- C/C++: `-Iconfig` comes FIRST on the command line (before any vendor\n"
     "  include dir), so `#include \"$config_header\"` resolves here.\n"
     "  `-DUSE_$config_guard` selects this pack's config (the Makefile sets\n"
-    "  both; `src/main-*` fails fast without the `-D`).\n"
+    "  both; `src/<core>/main.*` fails fast without the `-D`).\n"
     "- Rust: `build.rs` re-tracks `config/$config_header`\n"
     "  (`cargo:rerun-if-changed`) and declares `cfg($rust_cfg)` for\n"
     "  project-level selection; set it via `RUSTFLAGS=\"--cfg $rust_cfg\"`\n"
@@ -1047,13 +1052,16 @@ The generated Makefile discovers sources per core — no Makefile edit is needed
 | --- | --- |
 | `src/<core>/**/*.c`, `src/<core>/**/*.cpp` | that core only |
 | `src/common/**/*.c`, `src/common/**/*.cpp` | every core |
-| `src/main-<core>.{main_ext}` | that core (generated entry point) |
+| `src/<core>/main.{main_ext}` | that core (generated entry point) |
 
 This is a `{lang}` project, so the generated entry point is
-`src/main-<core>.{main_ext}` and it is compiled with `{main_compiler}`.
+`src/<core>/main.{main_ext}` and it is compiled with `{main_compiler}`.
 `.c` files compile with `$(CC)` and `.cpp` files with `$(CXX)`; a core that
 contains a `.cpp` source is linked with `$(CXX)`. Sources never cross cores: a
-file under `src/M4/` is not compiled into the M0+ (or M7) image.
+file under `src/M4/` is not compiled into the M0+ (or M7) image. Keep the entry
+point at `src/<core>/main.{main_ext}`: `SRCS_<core>` names it explicitly and
+filters it out of the `src/<core>/` wildcard, so an added source next to it can
+never duplicate the main object.
 
 For sources outside `src/` — a library ISR, for example — create the
 project-owned `config/sources.mk`. `mu create` never writes or overwrites this
@@ -1806,7 +1814,7 @@ def _render_legacy(
             ctx = core_context(pack_model, core, lang)
             sections.append(_MAKEFILE_CORE.substitute(ctx))
             rows.append(f"- `{core.name}`: `{ctx['startup_s']}`")
-            write(f"src/main-{core.name}.{ext}", _MAIN_C.substitute(ctx))
+            write(f"src/{core.name}/main.{ext}", _MAIN_C.substitute(ctx))
             # req-031: the documented source roots exist from the start, so a
             # user can drop src/<core>/foo.cpp or src/common/foo.c straight in.
             (out / "src" / core.name).mkdir(parents=True, exist_ok=True)

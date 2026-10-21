@@ -406,7 +406,7 @@ def test_cpu2_boot_cfg_write_absent_from_every_generated_tool_file(tmp_path) -> 
         and "0x5800040C" in p.read_text()
     ]
     assert hits == []
-    assert "0x5800040C" in (tmp_path / "src" / "main-M4.c").read_text()
+    assert "0x5800040C" in (tmp_path / "src" / "M4" / "main.c").read_text()
 
 
 def test_sibling_debug_target_attaches_without_reset(tmp_path) -> None:

@@ -100,8 +100,8 @@ def test_per_core_discovery_common_sources_and_extra_hook(tmp_path) -> None:
     assert "build/M4/src/common/config/common.o" in m4
     assert "build/M4/lib/extra.o" in m4
     assert "build/M4/third_party/isr.o" in m4
-    # Existing shape stays: main, startup, system.
-    assert "build/M4/src/main-M4.o" in m4
+    # Existing shape stays: main (now per-core), startup, system.
+    assert "build/M4/src/M4/main.o" in m4
     assert "build/M4/startup-M4.o" in m4
     assert "build/M4/system-M4.o" in m4
 
@@ -136,7 +136,7 @@ def test_c_sources_use_cc_and_cpp_uses_cxx_with_cxx_link(tmp_path) -> None:
     assert done.returncode == 0, done.stderr
     commands = done.stdout.splitlines()
 
-    main = next(c for c in commands if "-o build/M4/src/main-M4.o" in c)
+    main = next(c for c in commands if "-o build/M4/src/M4/main.o" in c)
     extra = next(c for c in commands if "-o build/M4/src/M4/extra.o" in c)
     link = next(c for c in commands if "-o build/M4/stm32f411re-M4.elf" in c)
 
@@ -176,7 +176,7 @@ def test_sources_hook_is_optional_and_project_owned(tmp_path) -> None:
     # No file: make still parses and keeps the existing main/startup/system list.
     db = _make_db(tmp_path)
     objs = _var(db, "OBJS_M4").split()
-    assert "build/M4/src/main-M4.o" in objs
+    assert "build/M4/src/M4/main.o" in objs
     assert "build/M4/startup-M4.o" in objs
     assert "build/M4/system-M4.o" in objs
 
@@ -202,34 +202,38 @@ def test_readme_documents_source_layout_and_hook(tmp_path) -> None:
 # --- req-032: per-core library flags and C++ entry point ---
 
 
-def test_cpp_lang_renders_cpp_main_compiled_and_linked_with_cxx(tmp_path) -> None:
-    """`--lang cpp` emits src/main-<core>.cpp; SRCS and the .cpp rule use it."""
+def test_cpp_lang_renders_per_core_cpp_main_compiled_and_linked_with_cxx(tmp_path) -> None:
+    """`--lang cpp` emits src/<core>/main.cpp; SRCS and the .cpp rule use it."""
     _render("stm32f411re", "cpp", tmp_path)
-    assert (tmp_path / "src/main-M4.cpp").is_file()
-    assert not (tmp_path / "src/main-M4.c").exists()
+    assert (tmp_path / "src/M4/main.cpp").is_file()
+    assert not (tmp_path / "src/M4/main.c").exists()
+    assert not (tmp_path / "src/main-M4.cpp").exists()
+    assert list((tmp_path / "src").glob("main-*")) == []
 
     db = _make_db(tmp_path)
     _stub_vendor_inputs(tmp_path, db, "M4")
-    assert "build/M4/src/main-M4.o" in _var(db, "OBJS_M4").split()
-    assert "src/main-M4.cpp" in (tmp_path / "Makefile").read_text()
+    assert "build/M4/src/M4/main.o" in _var(db, "OBJS_M4").split()
+    assert "src/M4/main.cpp" in (tmp_path / "Makefile").read_text()
 
     done = subprocess.run(
         ["make", "-n", "build-M4"], cwd=tmp_path, capture_output=True, text=True
     )
     assert done.returncode == 0, done.stderr
     commands = done.stdout.splitlines()
-    main = next(c for c in commands if "-o build/M4/src/main-M4.o" in c)
+    main = next(c for c in commands if "-o build/M4/src/M4/main.o" in c)
     link = next(c for c in commands if "-o build/M4/stm32f411re-M4.elf" in c)
     assert main.startswith("arm-none-eabi-g++ "), main
     assert "-std=c++17" in main
     assert link.startswith("arm-none-eabi-g++ "), link
 
 
-def test_c_lang_keeps_c_main_compiled_and_linked_with_cc(tmp_path) -> None:
-    """`--lang c` keeps the byte-shape: src/main-<core>.c via $(CC)."""
+def test_c_lang_renders_per_core_c_main_compiled_and_linked_with_cc(tmp_path) -> None:
+    """`--lang c` keeps the C entry point: src/<core>/main.c via $(CC)."""
     _render("stm32f411re", "c", tmp_path)
-    assert (tmp_path / "src/main-M4.c").is_file()
-    assert not (tmp_path / "src/main-M4.cpp").exists()
+    assert (tmp_path / "src/M4/main.c").is_file()
+    assert not (tmp_path / "src/M4/main.cpp").exists()
+    assert not (tmp_path / "src/main-M4.c").exists()
+    assert list((tmp_path / "src").glob("main-*")) == []
 
     db = _make_db(tmp_path)
     _stub_vendor_inputs(tmp_path, db, "M4")
@@ -238,11 +242,47 @@ def test_c_lang_keeps_c_main_compiled_and_linked_with_cc(tmp_path) -> None:
     )
     assert done.returncode == 0, done.stderr
     commands = done.stdout.splitlines()
-    main = next(c for c in commands if "-o build/M4/src/main-M4.o" in c)
+    main = next(c for c in commands if "-o build/M4/src/M4/main.o" in c)
     link = next(c for c in commands if "-o build/M4/stm32f411re-M4.elf" in c)
     assert main.startswith("arm-none-eabi-gcc "), main
     assert " -std=c++17" not in main
     assert link.startswith("arm-none-eabi-gcc "), link
+
+
+@pytest.mark.parametrize(
+    "pack_id,lang,expected",
+    [
+        ("stm32f411re", "cpp", ["src/M4/main.cpp"]),
+        ("stm32h755", "c", ["src/M7/main.c", "src/M4/main.c"]),
+        ("stm32wl55jc", "cpp", ["src/M4/main.cpp", "src/M0+/main.cpp"]),
+    ],
+)
+def test_per_core_main_paths_and_no_root_main(pack_id, lang, expected, tmp_path) -> None:
+    """req-033: one entry point per core dir; nothing at the src/ root."""
+    _render(pack_id, lang, tmp_path)
+    found = sorted(
+        p.relative_to(tmp_path).as_posix()
+        for p in (tmp_path / "src").glob("*/main.*")
+    )
+    assert found == sorted(expected)
+    assert list((tmp_path / "src").glob("main-*")) == []
+    makefile = (tmp_path / "Makefile").read_text()
+    assert "src/main-" not in makefile
+    for rel in expected:
+        assert rel in makefile
+
+
+def test_extra_source_next_to_main_does_not_duplicate_main_object(tmp_path) -> None:
+    """req-033: src/M4/extra.cpp coexists with one and only one main object."""
+    _render("stm32wl55jc", "cpp", tmp_path)
+    _write(tmp_path / "src/M4/extra.cpp", 'extern "C" int req033_extra(){return 3;}\n')
+    db = _make_db(tmp_path)
+    m4 = _var(db, "OBJS_M4").split()
+    assert m4.count("build/M4/src/M4/main.o") == 1
+    assert m4.count("build/M4/src/M4/extra.o") == 1
+    assert [obj for obj in m4 if obj.endswith("/main.o")] == ["build/M4/src/M4/main.o"]
+    # The explicit MAIN_<core> variable is what the wildcard filter removes.
+    assert _var(db, "MAIN_M4") == "src/M4/main.cpp"
 
 
 def test_extra_inc_and_suffix_flags_from_config_sources(tmp_path) -> None:
@@ -335,16 +375,18 @@ def test_h755_m7_links_with_cc_and_m4_with_cxx(tmp_path) -> None:
         assert link.startswith(f"{driver} "), (core, link)
 
 
-def test_readme_documents_extra_inc_and_cpp_main(tmp_path) -> None:
+def test_readme_documents_extra_inc_and_per_core_main(tmp_path) -> None:
     _render("stm32wl55jc", "cpp", tmp_path)
     readme = (tmp_path / "README.md").read_text()
     assert "EXTRA_INC_<core>" in readme
     assert "EXTRA_CFLAGS_<core>" in readme
     assert "EXTRA_CXXFLAGS_<core>" in readme
-    assert "src/main-<core>.cpp" in readme
+    assert "src/<core>/main.cpp" in readme
+    assert "src/main-<core>" not in readme
     assert "$(CXX)" in readme
 
     _render("stm32wl55jc", "c", tmp_path / "c")
     c_readme = (tmp_path / "c/README.md").read_text()
-    assert "src/main-<core>.c" in c_readme
+    assert "src/<core>/main.c" in c_readme
+    assert "src/main-<core>" not in c_readme
 
