@@ -68,6 +68,7 @@ def expected_files(pack_id: str, lang: str) -> list[str]:
             files.append(f"src/{core['name']}/main.{main_ext}")
             files.append(f"linker/{linker[core['name']]}")
         files.append("Startup/NOTE.md")
+        files.append("tools/gen_compile_commands.py")
     elif doc.get("stacks", {}).get("rust") == "cargo-cortex-dual":
         files = ["Makefile"]
         for core in doc["cores"]:
@@ -136,6 +137,9 @@ def test_cells(pack_id: str, lang: str, tmp_path: Path) -> None:
             assert f"OUT_{core['name']} = build/{core['name']}/" in text, "artifact dir missing"
             main = (out / f"src/{core['name']}/main.{'cpp' if lang == 'cpp' else 'c'}").read_text()
             assert header in main, "config header include missing"
+            if lang == "cpp":
+                assert "++i" not in main, "C++20 deprecates volatile increments"
+                assert "counter++" not in main, "C++20 deprecates volatile increments"
             if "example" in doc.get("blocks", {}) and index == 0:
                 assert (
                     "GPIO_BSRR" in main and "delay_half_period" in main and "LED_PIN" in main
@@ -178,7 +182,7 @@ def test_cells(pack_id: str, lang: str, tmp_path: Path) -> None:
         assert "mu-boot" in text, "flash helper must carry the boot verify-and-retry"
         assert "Reset_Handler" in (out / "Startup/NOTE.md").read_text()
         if lang == "cpp":
-            assert "-std=c++17" in text
+            assert "-std=c++20" in text
     else:
         is_dual = doc.get("stacks", {}).get("rust") == "cargo-cortex-dual"
         if is_dual:

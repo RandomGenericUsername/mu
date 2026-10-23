@@ -141,9 +141,9 @@ def test_c_sources_use_cc_and_cpp_uses_cxx_with_cxx_link(tmp_path) -> None:
     link = next(c for c in commands if "-o build/M4/stm32f411re-M4.elf" in c)
 
     assert main.startswith("arm-none-eabi-gcc ")
-    assert " -std=c++17" not in main, "C source must not get C++ flags"
+    assert " -std=c++20" not in main, "C source must not get C++ flags"
     assert extra.startswith("arm-none-eabi-g++ ")
-    assert "-std=c++17" in extra
+    assert "-std=c++20" in extra
     assert link.startswith("arm-none-eabi-g++ ")
 
 
@@ -223,7 +223,7 @@ def test_cpp_lang_renders_per_core_cpp_main_compiled_and_linked_with_cxx(tmp_pat
     main = next(c for c in commands if "-o build/M4/src/M4/main.o" in c)
     link = next(c for c in commands if "-o build/M4/stm32f411re-M4.elf" in c)
     assert main.startswith("arm-none-eabi-g++ "), main
-    assert "-std=c++17" in main
+    assert "-std=c++20" in main
     assert link.startswith("arm-none-eabi-g++ "), link
 
 
@@ -245,7 +245,7 @@ def test_c_lang_renders_per_core_c_main_compiled_and_linked_with_cc(tmp_path) ->
     main = next(c for c in commands if "-o build/M4/src/M4/main.o" in c)
     link = next(c for c in commands if "-o build/M4/stm32f411re-M4.elf" in c)
     assert main.startswith("arm-none-eabi-gcc "), main
-    assert " -std=c++17" not in main
+    assert " -std=c++20" not in main
     assert link.startswith("arm-none-eabi-gcc "), link
 
 

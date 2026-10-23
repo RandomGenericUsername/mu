@@ -83,6 +83,13 @@ def test_renderer_dual_core_ram_does_not_overlap(tmp_path) -> None:
     assert o7 + l7 <= o4 or o4 + l4 <= o7, "core RAM regions overlap"
 
 
+def test_renderer_cpp20_settings(tmp_path) -> None:
+    device = load_file(PACKS_DIR / "stm32f411re.yaml")
+    render(device, "cpp", tmp_path, vscode=True)
+    settings = (tmp_path / ".vscode/settings.json").read_text()
+    assert '"C_Cpp.default.cppStandard": "c++20"' in settings
+
+
 def test_renderer_supported_langs() -> None:
     assert SUPPORTED_LANGS == ("c", "cpp", "rust")
 

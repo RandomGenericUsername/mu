@@ -231,7 +231,10 @@ def _cpu2_boot_sections(facets: DeviceFacets) -> tuple[str, str]:
                 f" | 0x{value:08X}UL;"
             )
         else:
-            lines.append(f"    REG32(0x{addr:08X}UL) |= 0x{value:08X}UL;")
+            lines.append(
+                f"    REG32(0x{addr:08X}UL) = "
+                f"REG32(0x{addr:08X}UL) | 0x{value:08X}UL;"
+            )
     lines.append("}\n")
     ctor = "\n".join(lines)
     # Preamble only needed where the surrounding includes lack it (the sibling
@@ -248,9 +251,9 @@ def _cpu2_boot_sections(facets: DeviceFacets) -> tuple[str, str]:
 def _sibling_sections(facets: DeviceFacets) -> tuple[str, str]:
     """(extra includes, main body) for a core with no LED example (ops-018).
 
-    A volatile counter in a timed loop: set a breakpoint on ``counter++`` (or
-    watch ``counter``) to prove the core is attached and steppable. No pin is
-    touched, so a sibling core can't fight the primary core's LED example.
+    A volatile counter in a timed loop: set a breakpoint on the counter update
+    (or watch ``counter``) to prove the core is attached and steppable. No pin
+    is touched, so a sibling core can't fight the primary core's LED example.
     """
     clock = facets.example_led.clock_hz if facets.example_led else 16_000_000
     iters = round(_DELAY_HALF_PERIOD_S * clock / _DELAY_CYCLES_PER_ITER)
@@ -264,16 +267,17 @@ def _sibling_sections(facets: DeviceFacets) -> tuple[str, str]:
         "\n"
         "static void delay_loop(void)\n"
         "{\n"
-        "    for (volatile uint32_t i = 0; i < DELAY_ITERS; ++i) {\n"
+        "    for (volatile uint32_t i = 0; i < DELAY_ITERS; ) {\n"
         '        __asm volatile ("nop");\n'
+        "        i = i + 1;\n"
         "    }\n"
         "}\n"
     )
     body = (
         "    /* Sibling-core bring-up: proves this core runs and is debuggable.\n"
-        "       Breakpoint on `counter++` (or watch `counter`) — it advances. */\n"
+        "       Breakpoint on the counter update (or watch `counter`) — it advances. */\n"
         "    for (;;) {\n"
-        "        counter++;\n"
+        "        counter = counter + 1;\n"
         "        delay_loop();\n"
         "    }\n"
     )
@@ -313,17 +317,18 @@ def _main_sections(facets: DeviceFacets, primary: bool) -> tuple[str, str]:
         "\n"
         "static void delay_half_period(void)\n"
         "{\n"
-        "    for (volatile uint32_t i = 0; i < DELAY_ITERS; ++i) {\n"
+        "    for (volatile uint32_t i = 0; i < DELAY_ITERS; ) {\n"
         '        __asm volatile ("nop");\n'
+        "        i = i + 1;\n"
         "    }\n"
         "}\n"
     )
     body = (
         f"    /* Example for this pack: blink the on-board LED "
         f"(P{led.port.upper()}{led.pin}, {led.active} active). */\n"
-        f"    RCC_EN |= (1u << {led.rcc_en_bit});\n"
-        "    GPIO_MODER &= ~(3u << (LED_PIN * 2));\n"
-        "    GPIO_MODER |=  (1u << (LED_PIN * 2));\n"
+        f"    RCC_EN = RCC_EN | (1u << {led.rcc_en_bit});\n"
+        "    GPIO_MODER = GPIO_MODER & ~(3u << (LED_PIN * 2));\n"
+        "    GPIO_MODER = GPIO_MODER |  (1u << (LED_PIN * 2));\n"
         "\n"
         "    for (;;) {\n"
         "        GPIO_BSRR = BSRR_ON;\n"
@@ -437,7 +442,7 @@ def core_context(device: Device, core: Core, lang: str) -> dict:
         "main_ext": "cpp" if lang == "cpp" else "c",
         # C++ flags are separate from CFLAGS_<core> so .c sources always
         # compile with $(CC) even on the cpp stack (req-031).
-        "cxx_flags": " -std=c++17 -fno-exceptions -fno-rtti",
+        "cxx_flags": " -std=c++20 -fno-exceptions -fno-rtti",
         "oc_interface": device.openocd.interface if device.openocd else "stlink.cfg",
         "oc_cfg_path": _oc_cfg_path(device),
         "oc_flash_args": _oc_flash_args(device),
@@ -1653,7 +1658,7 @@ def _vscode_files(device: Device) -> dict[str, str]:
                 ),  # noqa: E501 - generated JSON key
                 "C_Cpp.default.intelliSenseMode": "gcc-arm",
                 "C_Cpp.default.cStandard": "c17",
-                "C_Cpp.default.cppStandard": "c++17",
+                "C_Cpp.default.cppStandard": "c++20",
                 "C_Cpp.errorSquiggles": "enabled",
                 "C_Cpp.default.includePath": [
                     "${workspaceFolder}/**",
